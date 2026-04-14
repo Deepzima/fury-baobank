@@ -1,0 +1,45 @@
+flowchart TB
+    subgraph cluster ["KFD Cluster"]
+        subgraph bvSystem ["bank-vaults-system namespace"]
+            operatorPod["bank-vaults-operator Deployment"]
+            webhookPod["vault-secrets-webhook Deployment"]
+        end
+
+        subgraph vaultNs ["openbao namespace"]
+            vaultCR["Vault CR<br/>declarative config"]
+            baoSts["openbao-0, openbao-1, openbao-2<br/>StatefulSet HA"]
+            raftStorage["Raft storage<br/>PV per replica"]
+            unsealSecret["K8s Secret<br/>encrypted unseal keys"]
+            baoSvc["openbao Service<br/>ClusterIP"]
+        end
+
+        subgraph appNs ["apps namespace"]
+            userApp["User Application<br/>Pod with annotation"]
+            appSA["ServiceAccount<br/>kubernetes auth role"]
+        end
+
+        subgraph monitoring ["monitoring namespace"]
+            prometheus["Prometheus<br/>scrapes OpenBao metrics"]
+        end
+    end
+
+    operatorPod -->|"reconcile"| vaultCR
+    operatorPod -->|"deploy + unseal"| baoSts
+    operatorPod -->|"read keys"| unsealSecret
+    baoSts -->|"persist"| raftStorage
+    baoSts -->|"exposed by"| baoSvc
+
+    userApp -->|"admission"| webhookPod
+    webhookPod -->|"auth via"| appSA
+    webhookPod -->|"read secret"| baoSvc
+
+    prometheus -->|"metrics"| baoSvc
+
+    classDef mgmt fill:#d4edda,stroke:#28a745
+    classDef data fill:#e3f2fd,stroke:#1976d2
+    classDef app fill:#fff3cd,stroke:#ffc107
+    classDef obs fill:#fff3e0,stroke:#f57c00
+    class bvSystem mgmt
+    class vaultNs data
+    class appNs app
+    class monitoring obs

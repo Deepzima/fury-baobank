@@ -1,0 +1,26 @@
+# zlab: fury-baobank — OpenBao + Bank-Vaults lab
+project: fury-baobank
+tenant: work
+
+assets:
+  - name: baobank
+    type: kind
+    config:
+      nodes: 3
+      k8s_version: "1.31"
+      cni: calico
+      pod_subnet: "10.244.0.0/16"
+      service_subnet: "10.96.0.0/12"
+      addons:
+        - cert-manager
+      port_mappings:
+        # OpenBao UI
+        - container: 30200
+          host: 30200
+
+network:
+  name: zlab-fury-baobank
+  subnet: "172.30.40.0/24"
+
+observe:
+  enabled: false

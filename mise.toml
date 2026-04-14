@@ -1,0 +1,72 @@
+[tools]
+kubectl   = "1.31.0"
+kustomize = "5.8.0"
+helm      = "3.16.0"
+bats      = "latest"
+
+[env]
+CLUSTER_NAME = "baobank"
+KUBECONFIG   = "{{env.HOME}}/.kube/config"
+
+# --- Cluster lifecycle ---
+
+[tasks.up]
+description = "Bring up Kind cluster via zlab"
+run = "zlab up"
+
+[tasks.down]
+description = "Tear down Kind cluster"
+run = "zlab down"
+
+[tasks.destroy]
+description = "Destroy Kind cluster"
+run = "zlab destroy"
+
+# --- Install stack ---
+
+[tasks.install-bank-vaults]
+description = "Install Bank-Vaults operator and webhook via Helm"
+depends = ["up"]
+run = """
+helm repo add banzaicloud-stable https://kubernetes-charts.banzaicloud.com
+helm repo update
+kubectl create namespace bank-vaults-system --dry-run=client -o yaml | kubectl apply -f -
+helm upgrade --install vault-operator banzaicloud-stable/vault-operator \
+  --namespace bank-vaults-system
+helm upgrade --install vault-secrets-webhook banzaicloud-stable/vault-secrets-webhook \
+  --namespace bank-vaults-system
+"""
+
+[tasks.install-openbao]
+description = "Deploy OpenBao via Bank-Vaults Vault CR"
+depends = ["install-bank-vaults"]
+run = """
+kubectl create namespace openbao --dry-run=client -o yaml | kubectl apply -f -
+kustomize build manifests/openbao | kubectl apply -f -
+"""
+
+[tasks.setup-all]
+description = "Complete setup: cluster + Bank-Vaults + OpenBao"
+depends = ["install-openbao"]
+run = 'echo "==> fury-baobank ready"'
+
+# --- Scenarios ---
+
+[tasks.scenario-inject]
+description = "Deploy sample app that receives secrets via injection"
+run = "kustomize build manifests/sample-app | kubectl apply -f -"
+
+[tasks.scenario-unseal]
+description = "Kill OpenBao pod and verify auto-unseal"
+run = """
+kubectl delete pod -n openbao -l app.kubernetes.io/name=openbao --force
+echo "==> Waiting for auto-unseal..."
+sleep 30
+kubectl get pods -n openbao
+"""
+
+# --- Tests ---
+
+[tasks.test]
+description = "Run BATS test suite"
+run = "bats --tap tests/"

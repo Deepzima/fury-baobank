@@ -1,0 +1,22 @@
+sequenceDiagram
+    autonumber
+    participant Operator as Bank-Vaults Operator
+    participant OpenBao as OpenBao Pod
+    participant KMS as Unseal Key Store
+    participant K8sSecret as K8s Secret
+
+    Note over Operator,K8sSecret: First startup
+    Operator->>OpenBao: start StatefulSet
+    OpenBao->>OpenBao: seal state (cannot read data)
+    Operator->>OpenBao: initialize
+    OpenBao-->>Operator: 5 unseal keys + root token
+    Operator->>KMS: encrypt keys with KMS key
+    Operator->>K8sSecret: store encrypted keys
+
+    Note over Operator,K8sSecret: Restart after crash or update
+    OpenBao->>OpenBao: pod restart, seal state
+    Operator->>K8sSecret: fetch encrypted keys
+    Operator->>KMS: decrypt keys
+    KMS-->>Operator: plaintext unseal keys
+    Operator->>OpenBao: submit 3 of 5 unseal keys
+    OpenBao->>OpenBao: unsealed, serves requests
