@@ -13,10 +13,16 @@ load 'helpers'
 }
 
 @test "1 control-plane + 2 workers" {
-  run kctl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.labels.node-role\.kubernetes\.io/control-plane}{"\n"}{end}'
+  # control-plane label value is empty string "" when set (presence = role).
+  # Count nodes that HAVE the label vs those that don't.
+  run kctl get nodes -l node-role.kubernetes.io/control-plane -o name
   [ "$status" -eq 0 ]
-  [ "$(echo "$output" | awk '$2 == "true"' | wc -l | tr -d ' ')" -eq 1 ]
-  [ "$(echo "$output" | awk '$2 == ""'     | wc -l | tr -d ' ')" -eq 2 ]
+  [ "$(echo "$output" | wc -l | tr -d ' ')" -eq 1 ]
+
+  # Workers = all nodes minus the control-plane (use the infra label we set).
+  run kctl get nodes -l node-role.fury.io/infra=true -o name
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | wc -l | tr -d ' ')" -eq 2 ]
 }
 
 @test "Worker nodes labeled node-role.fury.io/infra=true" {

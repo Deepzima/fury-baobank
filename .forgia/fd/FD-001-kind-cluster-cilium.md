@@ -1,7 +1,7 @@
 ---
 id: "FD-001"
 title: "Kind multinode cluster with Cilium via furyctl (1cp + 2 infra)"
-status: completed
+status: closed
 priority: high
 effort: medium
 impact: high

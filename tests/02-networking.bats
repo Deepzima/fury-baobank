@@ -6,7 +6,9 @@ NS=bats-net-test
 
 setup_file() {
   kctl create namespace "${NS}" --dry-run=client -o yaml | kctl apply -f - >/dev/null
-  # Deploy two pods on different infra workers (via node selector) and a Service
+  # Deploy two pods on different infra workers using podAntiAffinity.
+  # probe-b runs a simple HTTP server (python) that writes a known string to
+  # a temp file and serves it. probe-a curls probe-b.
   cat <<EOF | kctl apply -f - >/dev/null
 apiVersion: v1
 kind: Pod
@@ -17,11 +19,17 @@ metadata:
 spec:
   nodeSelector:
     node-role.fury.io/infra: "true"
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels: { app: probe }
+          topologyKey: kubernetes.io/hostname
   tolerations:
     - operator: Exists
   containers:
     - name: probe
-      image: busybox:stable
+      image: curlimages/curl:8.9.1
       command: ["sh", "-c", "sleep 3600"]
 ---
 apiVersion: v1
@@ -33,18 +41,25 @@ metadata:
 spec:
   nodeSelector:
     node-role.fury.io/infra: "true"
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels: { app: probe }
+          topologyKey: kubernetes.io/hostname
   tolerations:
     - operator: Exists
   containers:
     - name: probe
-      image: busybox:stable
-      command: ["sh", "-c", "httpd -f -p 8080 -h /tmp"]
+      image: python:3.13-alpine
+      command: ["sh", "-c", "echo 'hello-from-b' > /tmp/hello && cd /tmp && python3 -m http.server 8080"]
       readinessProbe:
         tcpSocket: { port: 8080 }
+        periodSeconds: 2
 EOF
-  # Wait for both probes to be Ready (up to 60s)
+  # Wait for both probes to be Ready (up to 120s — python image pull)
   for p in probe-a probe-b; do
-    wait_for 60 "kctl get pod -n ${NS} ${p} -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' | grep -q True"
+    wait_for 120 "kctl get pod -n ${NS} ${p} -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' | grep -q True"
   done
 }
 
@@ -55,14 +70,16 @@ teardown_file() {
 @test "probe-a can reach probe-b over the pod network" {
   local b_ip
   b_ip=$(kctl get pod -n "${NS}" probe-b -o jsonpath='{.status.podIP}')
-  run kctl exec -n "${NS}" probe-a -- wget -qO- --timeout=5 "http://${b_ip}:8080/"
+  run kctl exec -n "${NS}" probe-a -- curl -sf --max-time 5 "http://${b_ip}:8080/hello"
   [ "$status" -eq 0 ]
+  [[ "$output" == *"hello-from-b"* ]]
 }
 
 @test "DNS resolution works inside the cluster" {
-  run kctl exec -n "${NS}" probe-a -- nslookup kubernetes.default.svc.cluster.local
+  # curlimages/curl doesn't ship nslookup/dig; use getent
+  run kctl exec -n "${NS}" probe-a -- getent hosts kubernetes.default.svc.cluster.local
   [ "$status" -eq 0 ]
-  echo "$output" | grep -q "Address"
+  [ -n "$output" ]
 }
 
 @test "probes are on two different nodes (spread across infra workers)" {

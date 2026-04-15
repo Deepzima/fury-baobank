@@ -42,6 +42,9 @@ depends = ["up"]
 run = """
 set -euo pipefail
 
+echo "==> Rendering Cilium Kind override with dynamic API server IP"
+bash scripts/render-cilium-override.sh
+
 echo "==> Applying KFD distribution (networking=cilium)"
 KUBECONFIG="${KUBECONFIG}" furyctl apply \\
   --config furyctl.yaml \\
@@ -49,9 +52,8 @@ KUBECONFIG="${KUBECONFIG}" furyctl apply \\
   --disable-analytics
 
 echo "==> Waiting for Cilium agents to become Ready"
-kubectl --context "kind-${CLUSTER_NAME}" wait pods \\
-  -n kube-system -l k8s-app=cilium \\
-  --for=condition=Ready --timeout=180s
+kubectl --context "kind-${CLUSTER_NAME}" rollout status \\
+  daemonset -n kube-system cilium --timeout=180s
 
 echo "==> Verifying kube-proxy DaemonSet is absent"
 if kubectl --context "kind-${CLUSTER_NAME}" get daemonset -n kube-system kube-proxy 2>/dev/null; then
@@ -83,12 +85,13 @@ description = "Verify Hubble relay rejects unauthenticated gRPC"
 run = "bash scripts/hubble-mtls-check.sh"
 
 [tasks.test]
-description = "Run the full BATS E2E test suite (assumes cluster is up)"
+description = "Run the full BATS E2E test suite (assumes cluster is up and Cilium installed)"
+depends = ["install-cni"]
 run = "bats --tap tests/"
 
 [tasks.all]
-description = "Full setup + test: up + install-cni + test"
-depends = ["up", "install-cni", "test"]
+description = "Full setup + test (sequential): up -> install-cni -> test"
+depends = ["test"]
 run = 'echo "==> fury-baobank end-to-end validation passed"'
 
 [tasks.down]
