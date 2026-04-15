@@ -1,0 +1,28 @@
+# Kind cluster config for fury-baobank lab
+# - 3 nodes: 1 control-plane + 2 infra workers
+# - disableDefaultCNI: true (kindnetd disabled, Cilium installed via furyctl)
+# - Node image pinned by SHA256 digest (security: see FD-001 threat model)
+# - Port mappings bound to 127.0.0.1 only (no LAN exposure)
+#
+# SDD-001 decision: use Kind directly instead of zlab because zlab v0.4.0
+# does not expose disableDefaultCNI. Documented in SDD-001 Work Log.
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: fury-baobank
+networking:
+  disableDefaultCNI: true
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
+  kubeProxyMode: none
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.31.14@sha256:6f86cf509dbb42767b6e79debc3f2c32e4ee01386f0489b3b2be24b0a55aac2b
+  - role: worker
+    image: kindest/node:v1.31.14@sha256:6f86cf509dbb42767b6e79debc3f2c32e4ee01386f0489b3b2be24b0a55aac2b
+    extraPortMappings:
+      # Hubble UI (port-forward default; NodePort is opt-in)
+      - containerPort: 31200
+        hostPort: 31200
+        listenAddress: "127.0.0.1"
+  - role: worker
+    image: kindest/node:v1.31.14@sha256:6f86cf509dbb42767b6e79debc3f2c32e4ee01386f0489b3b2be24b0a55aac2b

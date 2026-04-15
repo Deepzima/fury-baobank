@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sighupio/fury-distribution/v1.34.0/schemas/public/kfddistribution-kfd-v1alpha2.json
+---
+# fury-baobank — Phase 0: Cilium via furyctl (SDD-002)
+# Only networking module enabled; every other module is `type: none`.
+# Target cluster: Kind (3 nodes, disableDefaultCNI: true, kubeProxyMode: none)
+apiVersion: kfd.sighup.io/v1alpha2
+kind: KFDDistribution
+metadata:
+  name: fury-baobank
+spec:
+  distributionVersion: v1.34.0
+  distribution:
+    kubeconfig: "{env://KUBECONFIG}"
+    modules:
+      networking:
+        type: cilium
+        cilium:
+          podCidr: "10.244.0.0/16"
+          maskSize: "24"
+
+      ingress:
+        baseDomain: 127.0.0.1.nip.io
+        nginx:
+          type: none
+        certManager:
+          clusterIssuer:
+            name: fury-lab
+            email: lab@fury.local
+            type: http01
+
+      monitoring:
+        type: none
+
+      logging:
+        type: none
+
+      tracing:
+        type: none
+
+      policy:
+        type: none
+
+      dr:
+        type: none
+        velero: {}
+
+      auth:
+        provider:
+          type: none
+
+    customPatches:
+      patches:
+        # Enable kube-proxy replacement and Hubble mTLS
+        - path: ./manifests/overrides/cilium-kube-proxy-replacement.yaml
+          target:
+            kind: ConfigMap
+            name: cilium-config
+            namespace: kube-system
+
+  plugins:
+    kustomize: []

@@ -1,72 +1,105 @@
 [tools]
+kind      = "0.31.0"
 kubectl   = "1.31.0"
 kustomize = "5.8.0"
 helm      = "3.16.0"
+furyctl   = "0.34.0"
 bats      = "latest"
 
 [env]
-CLUSTER_NAME = "baobank"
+CLUSTER_NAME = "fury-baobank"
 KUBECONFIG   = "{{env.HOME}}/.kube/config"
 
 # --- Cluster lifecycle ---
 
 [tasks.up]
-description = "Bring up Kind cluster via zlab"
-run = "zlab up"
+description = "Bring up Kind cluster (idempotent) and label infra workers"
+run = """
+set -euo pipefail
 
-[tasks.down]
-description = "Tear down Kind cluster"
-run = "zlab down"
+if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
+  echo "==> Cluster ${CLUSTER_NAME} already exists, skipping create"
+else
+  echo "==> Creating cluster ${CLUSTER_NAME}..."
+  kind create cluster --config cluster/kind.yaml --wait 120s
+fi
 
-[tasks.destroy]
-description = "Destroy Kind cluster"
-run = "zlab destroy"
+echo "==> Enforcing kubeconfig 0600 permissions"
+chmod 600 "${KUBECONFIG}"
 
-# --- Install stack ---
+echo "==> Labeling worker nodes as infra"
+for node in $(kubectl --context "kind-${CLUSTER_NAME}" get nodes -o name | grep worker); do
+  kubectl --context "kind-${CLUSTER_NAME}" label "$node" node-role.fury.io/infra=true --overwrite
+done
 
-[tasks.install-bank-vaults]
-description = "Install Bank-Vaults operator and webhook via Helm"
+echo "==> Control-plane Ready:"
+kubectl --context "kind-${CLUSTER_NAME}" get nodes
+"""
+
+[tasks.install-cni]
+description = "Install Cilium via furyctl using the KFD networking module"
 depends = ["up"]
 run = """
-helm repo add banzaicloud-stable https://kubernetes-charts.banzaicloud.com
-helm repo update
-kubectl create namespace bank-vaults-system --dry-run=client -o yaml | kubectl apply -f -
-helm upgrade --install vault-operator banzaicloud-stable/vault-operator \
-  --namespace bank-vaults-system
-helm upgrade --install vault-secrets-webhook banzaicloud-stable/vault-secrets-webhook \
-  --namespace bank-vaults-system
+set -euo pipefail
+
+echo "==> Applying KFD distribution (networking=cilium)"
+KUBECONFIG="${KUBECONFIG}" furyctl apply \\
+  --config furyctl.yaml \\
+  --outdir .fury \\
+  --disable-analytics
+
+echo "==> Waiting for Cilium agents to become Ready"
+kubectl --context "kind-${CLUSTER_NAME}" wait pods \\
+  -n kube-system -l k8s-app=cilium \\
+  --for=condition=Ready --timeout=180s
+
+echo "==> Verifying kube-proxy DaemonSet is absent"
+if kubectl --context "kind-${CLUSTER_NAME}" get daemonset -n kube-system kube-proxy 2>/dev/null; then
+  echo "ERROR: kube-proxy DaemonSet still present — Cilium replacement failed"
+  exit 1
+fi
+
+echo "==> All nodes Ready:"
+kubectl --context "kind-${CLUSTER_NAME}" get nodes
 """
 
-[tasks.install-openbao]
-description = "Deploy OpenBao via Bank-Vaults Vault CR"
-depends = ["install-bank-vaults"]
+[tasks.hubble]
+description = "Port-forward Hubble UI on 127.0.0.1:12000"
 run = """
-kubectl create namespace openbao --dry-run=client -o yaml | kubectl apply -f -
-kustomize build manifests/openbao | kubectl apply -f -
+set -euo pipefail
+if ! kubectl --context "kind-${CLUSTER_NAME}" get svc -n kube-system hubble-ui &>/dev/null; then
+  echo "ERROR: hubble-ui service not found — install Cilium first with 'mise run install-cni'"
+  exit 1
+fi
+echo "==> Starting Hubble UI on http://127.0.0.1:12000"
+echo "==> Press Ctrl-C to stop"
+kubectl --context "kind-${CLUSTER_NAME}" port-forward \\
+  -n kube-system svc/hubble-ui 12000:80 \\
+  --address 127.0.0.1
 """
 
-[tasks.setup-all]
-description = "Complete setup: cluster + Bank-Vaults + OpenBao"
-depends = ["install-openbao"]
-run = 'echo "==> fury-baobank ready"'
-
-# --- Scenarios ---
-
-[tasks.scenario-inject]
-description = "Deploy sample app that receives secrets via injection"
-run = "kustomize build manifests/sample-app | kubectl apply -f -"
-
-[tasks.scenario-unseal]
-description = "Kill OpenBao pod and verify auto-unseal"
-run = """
-kubectl delete pod -n openbao -l app.kubernetes.io/name=openbao --force
-echo "==> Waiting for auto-unseal..."
-sleep 30
-kubectl get pods -n openbao
-"""
-
-# --- Tests ---
+[tasks.hubble-mtls-check]
+description = "Verify Hubble relay rejects unauthenticated gRPC"
+run = "bash scripts/hubble-mtls-check.sh"
 
 [tasks.test]
-description = "Run BATS test suite"
+description = "Run the full BATS E2E test suite (assumes cluster is up)"
 run = "bats --tap tests/"
+
+[tasks.all]
+description = "Full setup + test: up + install-cni + test"
+depends = ["up", "install-cni", "test"]
+run = 'echo "==> fury-baobank end-to-end validation passed"'
+
+[tasks.down]
+description = "Delete Kind cluster"
+run = "kind delete cluster --name ${CLUSTER_NAME} 2>/dev/null || true"
+
+[tasks.status]
+description = "Show cluster status"
+run = """
+set -euo pipefail
+kind get clusters
+echo "---"
+kubectl --context "kind-${CLUSTER_NAME}" get nodes -o wide 2>/dev/null || echo "Cluster not up"
+"""

@@ -19,6 +19,10 @@ interfaces:
     protocol: "http"
     contract: "OpenBao HTTP API — auth, secrets, policy, sys endpoints"
     direction: "inbound"
+  - with: "application-layer"
+    protocol: "http"
+    contract: "OpenBao HTTP API — direct secret read for apps that bypass webhook injection"
+    direction: "inbound"
 
 dependencies:
   depends_on: []

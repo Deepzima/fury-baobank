@@ -1,0 +1,22 @@
+# Strategic merge patch on cilium-config to enable kube-proxy replacement.
+# Applied via furyctl customPatches (see furyctl.yaml).
+# Rationale:
+#   - Kind cluster is created with kubeProxyMode: none (SDD-001)
+#   - Cilium must handle Service load-balancing in eBPF
+#   - Hubble mTLS enforced — Hubble relay rejects unauthenticated gRPC
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cilium-config
+  namespace: kube-system
+data:
+  kube-proxy-replacement: "true"
+  bpf-lb-sock: "true"
+  enable-node-port: "true"
+  enable-external-ips: "true"
+  enable-host-port: "true"
+  # Hubble mTLS
+  hubble-tls-disabled: "false"
+  hubble-tls-auto-enabled: "true"
+  # Observability (stay L3/L4 by default — L7 is opt-in via CNP)
+  hubble-disable-tls: "false"
