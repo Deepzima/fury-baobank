@@ -50,10 +50,10 @@ setup_file() {
   wait_for 180 "kctl get pods -n ${TENANT_BETA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null | grep -q True"
 
   # 6. Wait for configurer to complete (applies externalConfig: policies, auth, secrets).
-  # The configurer runs as a Deployment that reconciles periodically; wait until
-  # the KV-v2 engine is accessible.
-  wait_for 120 "kctl exec -n ${TENANT_ALPHA} \$(kctl get pods -n ${TENANT_ALPHA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].metadata.name}') -c vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$(kctl get secret -n ${TENANT_ALPHA} reevo-ob-id-alpha-unseal-keys -o jsonpath='{.data.vault-root}' | base64 -d) vault secrets list -format=json 2>/dev/null | grep -q secret"
-  wait_for 120 "kctl exec -n ${TENANT_BETA} \$(kctl get pods -n ${TENANT_BETA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].metadata.name}') -c vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$(kctl get secret -n ${TENANT_BETA} reevo-ob-id-beta-unseal-keys -o jsonpath='{.data.vault-root}' | base64 -d) vault secrets list -format=json 2>/dev/null | grep -q secret"
+  # The configurer reconciles periodically; wait until the tenant policy exists
+  # (last thing applied — if policy is there, engines and auth are too).
+  wait_for 180 "kctl exec -n ${TENANT_ALPHA} \$(kctl get pods -n ${TENANT_ALPHA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].metadata.name}') -c vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$(kctl get secret -n ${TENANT_ALPHA} reevo-ob-id-alpha-unseal-keys -o jsonpath='{.data.vault-root}' | base64 -d) vault policy list 2>/dev/null | grep -q alpha-admin"
+  wait_for 180 "kctl exec -n ${TENANT_BETA} \$(kctl get pods -n ${TENANT_BETA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].metadata.name}') -c vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$(kctl get secret -n ${TENANT_BETA} reevo-ob-id-beta-unseal-keys -o jsonpath='{.data.vault-root}' | base64 -d) vault policy list 2>/dev/null | grep -q beta-admin"
 }
 
 teardown_file() {
