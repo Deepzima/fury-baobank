@@ -39,7 +39,7 @@ spec:
   config:
     storage:
       raft:
-        path: "/vault/data"
+        path: "/openbao/data"
     listener:
       tcp:
         address: "0.0.0.0:8200"
@@ -52,7 +52,8 @@ spec:
     ui: false
 
   # Service account for the OpenBao pod.
-  serviceAccount: reevo-ob-id-alpha
+  # The operator does NOT create the SA — set to "default" which always exists.
+  serviceAccount: default
 
   # Persistent storage for Raft.
   volumeClaimTemplates:
@@ -65,22 +66,17 @@ spec:
           requests:
             storage: 1Gi
 
-  # Mount Raft storage into the vault container.
+  # Override vault container mounts: OpenBao expects config at /openbao/config
+  # (not /vault/config which is the HashiCorp Vault path). The operator renders
+  # config into the vault-config emptyDir — we mount it at the OpenBao path.
+  # Also mount Raft storage at /openbao/data (not /vault/data).
   vaultContainerSpec:
     name: vault
     volumeMounts:
-      - mountPath: /vault/data
+      - mountPath: /openbao/config
+        name: vault-config
+      - mountPath: /openbao/data
         name: vault-raft
-
-  # Pod security context.
-  vaultPodSpec:
-    securityContext:
-      runAsNonRoot: true
-      runAsUser: 100
-      runAsGroup: 1000
-      fsGroup: 1000
-      seccompProfile:
-        type: RuntimeDefault
 
   # Resource limits per OpenBao pod (lab sizing).
   resources:
@@ -96,11 +92,13 @@ spec:
   # Policies, auth methods, and secret engines — all declarative.
   externalConfig:
     # Enable audit logging — every secret read/write is logged (threat model rec).
+    # Path: /tmp/ is writable by the non-root OpenBao process.
+    # /vault/logs/ does NOT exist in the OpenBao image (it uses /openbao/).
     audit:
       - type: file
         path: file
         options:
-          file_path: /vault/logs/audit.log
+          file_path: /tmp/audit.log
 
     # KV-v2 secret engine at secret/.
     # The tenant has full CRUD — it's their Vault.

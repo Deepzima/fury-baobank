@@ -1,0 +1,28 @@
+# RBAC for the Bank-Vaults sidecar running inside the OpenBao pod.
+# The sidecar needs to read/write Secrets in the tenant namespace for
+# unseal keys and root token storage. Without this, the default SA
+# cannot access Secrets and init/unseal fails.
+#
+# Applied per-tenant namespace by the BATS setup_file.
+# In production, this would be part of the tenant onboarding automation.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-unseal-secrets
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-unseal-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-unseal-secrets
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: TENANT_NS

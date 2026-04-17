@@ -65,14 +65,14 @@ load 'helpers'
 # --- Bank-Vaults webhook boundary checks (FD-003 threat model) ---
 
 @test "Bank-Vaults MutatingWebhookConfiguration exists (secret injection)" {
-  run kctl get mutatingwebhookconfiguration -l app.kubernetes.io/name=vault-secrets-webhook -o name
+  run kctl get mutatingwebhookconfiguration vault-secrets-webhook -o name
   [ "$status" -eq 0 ]
   [ -n "$output" ]
 }
 
 @test "No rogue Bank-Vaults webhook points outside bank-vaults-system" {
-  run kctl get mutatingwebhookconfiguration -l app.kubernetes.io/name=vault-secrets-webhook \
-    -o jsonpath='{range .items[*].webhooks[*]}{.clientConfig.service.namespace}{"\n"}{end}'
+  run kctl get mutatingwebhookconfiguration vault-secrets-webhook \
+    -o jsonpath='{range .webhooks[*]}{.clientConfig.service.namespace}{"\n"}{end}'
   [ "$status" -eq 0 ]
   while IFS= read -r ns; do
     [ -z "$ns" ] && continue

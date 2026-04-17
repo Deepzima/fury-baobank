@@ -34,3 +34,11 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    # Allow K8s API access (bank-vaults sidecar needs it for unseal keys
+    # Secret read/write and Kubernetes auth method).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

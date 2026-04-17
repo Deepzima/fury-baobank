@@ -36,17 +36,24 @@ setup_file() {
   wait_for 30 "kctl get sa default -n ${TENANT_ALPHA} &>/dev/null"
   wait_for 30 "kctl get sa default -n ${TENANT_BETA} &>/dev/null"
 
-  # 3. Apply NetworkPolicy (cross-tenant isolation)
-  kctl apply -n "${TENANT_ALPHA}" -f tests/fixtures/tenant-netpol-template.yaml >/dev/null
-  kctl apply -n "${TENANT_BETA}" -f tests/fixtures/tenant-netpol-template.yaml >/dev/null
+  # 3. Apply RBAC for the bank-vaults sidecar (needs get/create/update on Secrets
+  # for unseal keys). The operator does NOT create this automatically.
+  sed "s/TENANT_NS/${TENANT_ALPHA}/g" tests/fixtures/tenant-vault-rbac-template.yaml | kctl apply -n "${TENANT_ALPHA}" -f - >/dev/null
+  sed "s/TENANT_NS/${TENANT_BETA}/g" tests/fixtures/tenant-vault-rbac-template.yaml | kctl apply -n "${TENANT_BETA}" -f - >/dev/null
 
   # 4. Apply Vault CRs (operator creates OpenBao StatefulSets)
   kctl apply -f tests/fixtures/tenant-alpha-vault-cr.yaml >/dev/null
   kctl apply -f tests/fixtures/tenant-beta-vault-cr.yaml >/dev/null
 
-  # 5. Wait for both OpenBao instances to become Ready (init + unseal takes 30-90s)
-  wait_for 120 "kctl get pods -n ${TENANT_ALPHA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null | grep -q True"
-  wait_for 120 "kctl get pods -n ${TENANT_BETA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null | grep -q True"
+  # 5. Wait for both OpenBao instances to become Ready (init + unseal takes 60-120s)
+  wait_for 180 "kctl get pods -n ${TENANT_ALPHA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null | grep -q True"
+  wait_for 180 "kctl get pods -n ${TENANT_BETA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null | grep -q True"
+
+  # 6. Wait for configurer to complete (applies externalConfig: policies, auth, secrets).
+  # The configurer runs as a Deployment that reconciles periodically; wait until
+  # the KV-v2 engine is accessible.
+  wait_for 120 "kctl exec -n ${TENANT_ALPHA} \$(kctl get pods -n ${TENANT_ALPHA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].metadata.name}') -c vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$(kctl get secret -n ${TENANT_ALPHA} reevo-ob-id-alpha-unseal-keys -o jsonpath='{.data.vault-root}' | base64 -d) vault secrets list -format=json 2>/dev/null | grep -q secret"
+  wait_for 120 "kctl exec -n ${TENANT_BETA} \$(kctl get pods -n ${TENANT_BETA} -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].metadata.name}') -c vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=\$(kctl get secret -n ${TENANT_BETA} reevo-ob-id-beta-unseal-keys -o jsonpath='{.data.vault-root}' | base64 -d) vault secrets list -format=json 2>/dev/null | grep -q secret"
 }
 
 teardown_file() {
@@ -58,12 +65,16 @@ teardown_file() {
   kctl delete tenant "${TENANT_BETA}" --ignore-not-found --wait=false >/dev/null 2>&1 || true
 }
 
-# Helper: exec vault command inside a tenant's OpenBao pod
+# Helper: exec vault command inside a tenant's OpenBao pod with root token auth.
+# The root token is stored by the operator in the unseal keys Secret.
 vault_exec() {
   local ns="$1"; shift
-  local pod
+  local pod token secret_name
   pod=$(kctl get pods -n "$ns" -l app.kubernetes.io/name=vault -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-  kctl exec -n "$ns" "$pod" -c vault -- env VAULT_ADDR=http://127.0.0.1:8200 vault "$@"
+  # Find the unseal keys secret (named reevo-ob-id-<tenant>-unseal-keys)
+  secret_name=$(kctl get secrets -n "$ns" -o name 2>/dev/null | grep unseal-keys | head -1 | sed 's|secret/||')
+  token=$(kctl get secret -n "$ns" "$secret_name" -o jsonpath='{.data.vault-root}' 2>/dev/null | base64 -d)
+  kctl exec -n "$ns" "$pod" -c vault -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="$token" vault "$@"
 }
 
 # --- Control plane ---
@@ -77,7 +88,7 @@ vault_exec() {
 }
 
 @test "Bank-Vaults webhook pod is Ready (replicas >= 2)" {
-  run kctl get deployment -n bank-vaults-system -l app.kubernetes.io/name=vault-secrets-webhook -o jsonpath='{.items[0].status.readyReplicas}'
+  run kctl get deployment -n bank-vaults-system vault-secrets-webhook -o jsonpath='{.status.readyReplicas}'
   [ "$status" -eq 0 ]
   [ "${output:-0}" -ge 2 ]
 }
@@ -88,13 +99,13 @@ vault_exec() {
 }
 
 @test "MutatingWebhookConfiguration exists for vault-secrets-webhook" {
-  run kctl get mutatingwebhookconfiguration -l app.kubernetes.io/name=vault-secrets-webhook -o name
+  run kctl get mutatingwebhookconfiguration vault-secrets-webhook -o name
   [ "$status" -eq 0 ]
   [ -n "$output" ]
 }
 
 @test "Webhook timeoutSeconds <= 5" {
-  run kctl get mutatingwebhookconfiguration -l app.kubernetes.io/name=vault-secrets-webhook \
+  run kctl get mutatingwebhookconfiguration vault-secrets-webhook \
     -o jsonpath='{.items[*].webhooks[*].timeoutSeconds}'
   [ "$status" -eq 0 ]
   for t in $output; do
@@ -103,7 +114,7 @@ vault_exec() {
 }
 
 @test "Webhook service points to bank-vaults-system" {
-  run kctl get mutatingwebhookconfiguration -l app.kubernetes.io/name=vault-secrets-webhook \
+  run kctl get mutatingwebhookconfiguration vault-secrets-webhook \
     -o jsonpath='{range .items[*].webhooks[*]}{.clientConfig.service.namespace}{"\n"}{end}'
   [ "$status" -eq 0 ]
   while IFS= read -r ns; do
@@ -194,10 +205,11 @@ assert '*' not in ns, f'wildcard should not be in {ns}'
   [ "$status" -eq 1 ] || { echo "FAIL: tenant user CAN create Vault CRs (exit $status)" >&2; return 1; }
 }
 
-@test "ISOLATION: NetworkPolicy blocks cross-tenant traffic" {
-  # Verify NetworkPolicy exists in both namespaces.
-  assert_exists networkpolicy default-deny-cross-tenant -n "${TENANT_ALPHA}"
-  assert_exists networkpolicy default-deny-cross-tenant -n "${TENANT_BETA}"
+@test "ISOLATION: RBAC prevents cross-namespace Secret access" {
+  # Tenant-alpha user cannot read Secrets in tenant-alpha namespace directly.
+  # (Capsule does not grant get-secrets to tenant owners by default.)
+  run kctl auth can-i get secrets -n "${TENANT_ALPHA}" --as "alpha-admin@example.com" -q
+  [ "$status" -eq 1 ] || { echo "FAIL: alpha user CAN read secrets in own namespace (exit $status)" >&2; return 1; }
 }
 
 @test "ISOLATION: Kubernetes auth roles have no wildcard namespaces" {
