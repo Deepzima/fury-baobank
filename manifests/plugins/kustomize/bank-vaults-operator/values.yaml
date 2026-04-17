@@ -1,0 +1,39 @@
+# Bank-Vaults operator chart values used by `mise run bank-vaults:template`.
+#
+# Chart: oci://ghcr.io/bank-vaults/helm-charts/vault-operator (v1.23.4)
+# Rationale for each override is documented inline — do not remove comments
+# without re-reading the threat model (FD-003-threat-model.md).
+
+# Replicas: single replica acceptable for lab. Operator is stateless — K8s
+# restarts it on crash. HA (replicas: 2) would need leader election config.
+replicaCount: 1
+
+# CRDs: installed via helm chart hooks. We also extract them separately for
+# kapp ordering but let helm manage them during template.
+crds:
+  install: true
+
+# Operator image: pinned to chart appVersion (1.23.4). Not using :latest.
+# Digest pinning deferred to production (threat model rec).
+image:
+  pullPolicy: IfNotPresent
+
+# Bank-Vaults sidecar image used by the operator when managing Vault instances.
+# This is the image that runs inside the Vault pod for init/unseal/config.
+bankVaults:
+  image:
+    repository: ghcr.io/bank-vaults/bank-vaults
+    tag: "v1.32.1"
+
+# Resource limits — avoid OOM on Kind lab while not over-allocating.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# No monitoring stack in the lab.
+serviceMonitor:
+  enabled: false

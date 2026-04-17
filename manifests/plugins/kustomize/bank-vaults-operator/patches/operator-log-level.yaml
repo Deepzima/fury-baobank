@@ -1,0 +1,18 @@
+# Patch: override operator log level from debug → info.
+#
+# Why: the chart hardcodes OPERATOR_LOG_LEVEL=debug with no values.yaml key.
+# Debug logs may contain unseal keys or root tokens across tenant instances
+# (threat model FD-003 rec). Info is sufficient for operational monitoring.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault-operator
+  namespace: bank-vaults-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: vault-operator
+          env:
+            - name: OPERATOR_LOG_LEVEL
+              value: "info"

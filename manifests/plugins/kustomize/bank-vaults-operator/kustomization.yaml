@@ -1,0 +1,24 @@
+# Bank-Vaults operator bundle consumed by furyctl plugins.kustomize.
+# Regenerate via: mise run bank-vaults:template
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: bank-vaults-system
+
+resources:
+  - resources/namespace.yaml
+  # CRD (Vault CR definition — required before any Vault CR can be created)
+  - crds/vault.banzaicloud.com_vaults.yaml
+  # Rendered Helm output (operator Deployment + RBAC + Service)
+  - resources/vault-operator-from-helm.yaml
+
+# Override operator log level from debug → info (chart hardcodes debug with
+# no values.yaml key). Debug logs may leak unseal keys/root tokens across
+# tenant instances — threat model FD-003 rec.
+patches:
+  - path: patches/operator-log-level.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: vault-operator

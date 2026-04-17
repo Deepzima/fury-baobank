@@ -1,0 +1,14 @@
+# Bank-Vaults webhook bundle consumed by furyctl plugins.kustomize.
+# Regenerate via: mise run bank-vaults:template
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: bank-vaults-system
+
+resources:
+  # Rendered Helm output (Deployment + MutatingWebhook + RBAC + cert-manager)
+  - resources/vault-secrets-webhook-from-helm.yaml
+
+# Note: no isCA patch needed — the webhook chart uses a proper two-tier CA
+# pattern (SelfSigned Issuer → CA Certificate with isCA:true → CA Issuer →
+# webhook leaf cert). Unlike the Capsule chart (FD-002 CAPSULE-001).

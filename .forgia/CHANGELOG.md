@@ -28,6 +28,25 @@ Phase 1 prep: Capsule v0.12.4 deployed via `plugins.kustomize` in the same `fury
 - **CAPSULE-001**: chart's `certManager.generateCertificates: true` produces a Certificate without `isCA: true`, so the resulting leaf cert can't serve as its own CA bundle under strict x509. Proposed fix: either default `isCA: true` or ship a two-tier Issuer pattern (SelfSigned → CA Certificate → CA Issuer → webhook leaf).
 - **CAPSULE-002**: default `webhooks.hooks.namespaces.namespaceSelector` should exempt `capsule-system` + core system namespaces out of the box — everyone hits the bootstrap chicken-and-egg on first install.
 
+### Aggregate retrospective
+
+**What worked across SDDs:**
+- `helm show values` before writing `values.yaml` (SDD-001) — avoids guessing chart keys
+- `kustomize build` as post-render sanity (SDD-001) — catches schema errors before `furyctl apply`
+- 2-line `furyctl.yaml` diff (SDD-002) — easy to review, no speculative changes
+- `setup_file` fail-fast pattern (SDD-003) — immediate actionable errors instead of 9 cascading failures
+- `bats --count` as cheap structural check (SDD-004) — verifies test count before running full suite
+
+**What didn't work / lessons:**
+- Old boilerplate had `secretGenerator` pointing outside the folder — evidence of unvalidated copy from `pec/infra` (SDD-001)
+- `kubectl auth can-i --as owner` too indirect for privilege escalation testing — inspecting ClusterRoleBinding directly catches the exact threat (SDD-003)
+- Context guard `*"fury-baobank"*` glob was too loose — `fury-baobank-staging` would pass. Tightened to exact-match `kind-${CLUSTER_NAME}` (SDD-004)
+
+**Suggestions for future FDs:**
+- `mise run capsule:diff` helper to show `git diff` of rendered chart after regen (SDD-001)
+- `tests/helpers.bash` `fail_fast_if_missing` function to reduce boilerplate across suites (SDD-003)
+- `tests/_common/context_guard.bash` helper sourced by all BATS files (SDD-004)
+
 ### Files changed
 
 - `furyctl.yaml` — single `plugins.kustomize` entry for Capsule

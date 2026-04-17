@@ -1,0 +1,63 @@
+# Bank-Vaults webhook chart values used by `mise run bank-vaults:template`.
+#
+# Chart: oci://ghcr.io/bank-vaults/helm-charts/vault-secrets-webhook (v1.22.2)
+# Rationale for each override documented inline — see threat model FD-003.
+
+# HA: 2 replicas. failurePolicy: Fail blocks ALL pod creation if webhook is
+# down — must survive single-pod failure (threat model rec).
+replicaCount: 2
+
+# No debug in production-adjacent lab.
+debug: false
+
+# cert-manager handles webhook TLS. Avoids the chart's built-in self-signed
+# cert generator which may hit the same isCA issue as Capsule (FD-002).
+certificate:
+  useCertManager: true
+  generate: false
+
+# vault-env image used for init-container injection.
+vaultEnv:
+  repository: ghcr.io/bank-vaults/vault-env
+  tag: "v1.22.1"
+
+# Webhook failure policies — fail-closed per constitution and threat model.
+# Default chart values are Ignore — override to Fail.
+podsFailurePolicy: Fail
+secretsFailurePolicy: Fail
+configMapFailurePolicy: Fail
+customResourcesFailurePolicy: Fail
+
+# Webhook timeout — 5s to prevent DoS (same as Capsule).
+# Chart default is 1s which may be too short for cross-namespace Vault calls.
+timeoutSeconds: 5
+
+# Namespace selector: exempt system namespaces from webhook.
+# Without this, the webhook intercepts pod creation in kube-system, cert-manager,
+# capsule-system, bank-vaults-system — causing bootstrap chicken-and-egg or
+# unnecessary latency on system pods.
+namespaceSelector:
+  matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values:
+        - kube-system
+        - kube-public
+        - kube-node-lease
+        - cert-manager
+        - capsule-system
+        - bank-vaults-system
+        - local-path-storage
+
+# Ignore the release namespace (bank-vaults-system) — the operator/webhook
+# pods themselves should not be injected.
+ignoreReleaseNamespace: true
+
+# Resource limits.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
