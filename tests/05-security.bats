@@ -61,3 +61,21 @@ load 'helpers'
     [ "$ns" = "capsule-system" ] || { echo "FAIL: webhook points at namespace '$ns' (expected capsule-system)" >&2; return 1; }
   done <<< "$output"
 }
+
+# --- Bank-Vaults webhook boundary checks (FD-003 threat model) ---
+
+@test "Bank-Vaults MutatingWebhookConfiguration exists (secret injection)" {
+  run kctl get mutatingwebhookconfiguration -l app.kubernetes.io/name=vault-secrets-webhook -o name
+  [ "$status" -eq 0 ]
+  [ -n "$output" ]
+}
+
+@test "No rogue Bank-Vaults webhook points outside bank-vaults-system" {
+  run kctl get mutatingwebhookconfiguration -l app.kubernetes.io/name=vault-secrets-webhook \
+    -o jsonpath='{range .items[*].webhooks[*]}{.clientConfig.service.namespace}{"\n"}{end}'
+  [ "$status" -eq 0 ]
+  while IFS= read -r ns; do
+    [ -z "$ns" ] && continue
+    [ "$ns" = "bank-vaults-system" ] || { echo "FAIL: webhook points at namespace '$ns' (expected bank-vaults-system)" >&2; return 1; }
+  done <<< "$output"
+}

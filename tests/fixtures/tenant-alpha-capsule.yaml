@@ -1,0 +1,17 @@
+apiVersion: capsule.clastix.io/v1beta2
+kind: Tenant
+metadata:
+  name: bats-tenant-alpha
+spec:
+  owners:
+    - name: alpha-admin@example.com
+      kind: User
+  namespaceOptions:
+    quota: 2
+  resourceQuotas:
+    scope: Tenant
+    items:
+      - hard:
+          limits.cpu: "2"
+          limits.memory: "2Gi"
+          requests.storage: "2Gi"

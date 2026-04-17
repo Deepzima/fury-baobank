@@ -88,6 +88,15 @@ run = "bash scripts/hubble-mtls-check.sh"
 description = "Regenerate Capsule kustomize bundle from upstream chart (manual, network)"
 run = "make -C manifests/plugins/kustomize/capsule template"
 
+[tasks."bank-vaults:template"]
+description = "Regenerate Bank-Vaults operator + webhook kustomize bundles (manual, network)"
+run = """
+set -euo pipefail
+make -C manifests/plugins/kustomize/bank-vaults-operator template
+make -C manifests/plugins/kustomize/bank-vaults-webhook template
+echo "==> Bank-Vaults operator + webhook bundles regenerated"
+"""
+
 [tasks.test]
 description = "Run the full BATS E2E test suite (assumes cluster is up and Cilium installed)"
 depends = ["install-cni"]

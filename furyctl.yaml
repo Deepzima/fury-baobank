@@ -70,3 +70,12 @@ spec:
       # Regenerate with: mise run capsule:template
       - name: capsule
         folder: ./manifests/plugins/kustomize/capsule
+      # Bank-Vaults operator — watches all namespaces for Vault CRs,
+      # manages per-tenant OpenBao lifecycle (FD-003 SDD-001).
+      # Regenerate with: mise run bank-vaults:template
+      - name: bank-vaults-operator
+        folder: ./manifests/plugins/kustomize/bank-vaults-operator
+      # Bank-Vaults webhook — mutating admission webhook for secret
+      # injection into tenant pods (FD-003 SDD-002).
+      - name: bank-vaults-webhook
+        folder: ./manifests/plugins/kustomize/bank-vaults-webhook
