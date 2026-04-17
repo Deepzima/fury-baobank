@@ -1,0 +1,30 @@
+# Capsule bundle consumed by furyctl plugins.kustomize.
+# Regenerate via: mise run capsule:template
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: capsule-system
+
+resources:
+  - resources/namespace.yaml
+  # CRDs (refreshed from chart v0.12.x — see Makefile CHART_VERSION)
+  - crds/capsule.clastix.io_capsuleconfigurations.yaml
+  - crds/capsule.clastix.io_globaltenantresources.yaml
+  - crds/capsule.clastix.io_resourcepoolclaims.yaml
+  - crds/capsule.clastix.io_resourcepools.yaml
+  - crds/capsule.clastix.io_tenantowners.yaml
+  - crds/capsule.clastix.io_tenantresources.yaml
+  - crds/capsule.clastix.io_tenants.yaml
+  # Rendered Helm output (controller + webhook + RBAC + cert-manager Issuer)
+  - resources/capsule-from-helm.yaml
+
+# Patch the webhook Certificate with isCA:true — upstream chart omits it and
+# Go's strict x509 verification rejects the resulting non-CA cert as the
+# webhook caBundle. See patches/certificate-isca.yaml for the full rationale.
+patches:
+  - path: patches/certificate-isca.yaml
+    target:
+      group: cert-manager.io
+      version: v1
+      kind: Certificate
+      name: capsule-webhook-cert

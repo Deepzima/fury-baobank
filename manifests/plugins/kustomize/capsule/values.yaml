@@ -1,0 +1,73 @@
+# Capsule chart values used by `mise run capsule:template`.
+#
+# Chart: projectcapsule/capsule (pinned in the Makefile)
+# Rationale for each override is documented inline — do not remove comments
+# without re-reading the threat model (FD-002-threat-model.md).
+
+# HA: avoid single-pod DoS (threat model SDD-001 rec #2).
+replicaCount: 2
+
+# Log level: info is the default but declare explicitly so a debug override is
+# a deliberate edit, not a silent drop-in. Debug would leak admission review
+# bodies into logs (threat model SDD-001 rec #1).
+manager:
+  options:
+    logLevel: "info"
+    # cert-manager handles the webhook TLS (see certManager block below).
+    # When replicaCount > 1, only the leader pod can generate the secret,
+    # so non-leader pods crashloop until the leader wins. Delegating to
+    # cert-manager removes that race.
+    generateCertificates: false
+
+# Let cert-manager (already installed in the lab) issue and rotate the
+# webhook TLS secret. Avoids the leader-only cert gen race documented above.
+certManager:
+  generateCertificates: true
+
+  # Sane resources — avoid OOM on the lab cluster while not over-allocating.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Validating/Mutating webhook timeout.
+# Short timeout prevents a slow webhook from blocking namespace operations
+# cluster-wide (threat model SDD-001 rec #3).
+webhooks:
+  mutatingWebhooksTimeoutSeconds: 5
+  validatingWebhooksTimeoutSeconds: 5
+  # Exempt system namespaces from the `namespaces` webhook.
+  # Without this, the webhook blocks the creation of `capsule-system` itself
+  # (the namespace where the webhook service runs) — chicken-and-egg stall
+  # when bootstrapping via `furyctl apply`.
+  hooks:
+    namespaces:
+      namespaceSelector:
+        matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: NotIn
+            values:
+              - capsule-system
+              - kube-system
+              - kube-public
+              - kube-node-lease
+              - cert-manager
+              - local-path-storage
+
+# We are NOT deploying capsule-proxy in this lab.
+# Reason: proxy is needed for multi-tenant RBAC filtering for UI/kubectl users.
+# The lab accesses the cluster via cluster-admin kubeconfig (single operator),
+# and tenant enforcement is verified at the CR/webhook level. Proxy adds
+# operational surface (another Deployment, Service, Ingress, TLS) without
+# validating anything new for Phase 0-1.
+proxy:
+  enabled: false
+
+# Do not install ServiceMonitor / PrometheusRule — the lab does not deploy a
+# monitoring stack (monitoring.type: none in furyctl.yaml). Attempting to
+# create a ServiceMonitor without prometheus-operator CRDs present fails.
+serviceMonitor:
+  enabled: false

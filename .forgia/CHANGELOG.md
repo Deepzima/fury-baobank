@@ -1,5 +1,44 @@
 # Changelog
 
+## [FD-002] Capsule multi-tenancy via furyctl kustomize plugin — 2026-04-17
+
+### Summary
+
+Phase 1 prep: Capsule v0.12.4 deployed via `plugins.kustomize` in the same `furyctl apply` pass that installs Cilium. Chart refreshed from v0.6.2 (2.5-year-old boilerplate) to current stable. All 4 SDDs completed; fresh-cluster `mise run all` passes 38/38 BATS (26 from FD-001 + 12 new from FD-002).
+
+### SDDs completed
+
+- **SDD-001** Kustomize boilerplate refresh (chart v0.6.2 → v0.12.4, dropped capsule-proxy + ServiceMonitor + CA secretGenerator)
+- **SDD-002** `furyctl.yaml` `plugins.kustomize` entry (single folder, idempotent with Cilium)
+- **SDD-003** 10-case BATS suite (`tests/06-capsule.bats`) covering install + webhook + Tenant enforcement + privilege-escalation rejection
+- **SDD-004** `capsule:template` regen task + context guard + 2 extra security assertions in `tests/05-security.bats`
+
+### Key decisions (aggregated from SDD Work Logs)
+
+1. **cert-manager delegation, not Capsule self-gen** — `manager.options.generateCertificates: false` + `certManager.generateCertificates: true`. With `replicaCount: 2`, only the leader can generate the cert; non-leader pods crashloop until leader wins. Cert-manager removes the race.
+2. **System-namespace exemption for the `namespaces` webhook** — `namespaceSelector NotIn [capsule-system, kube-system, kube-public, kube-node-lease, cert-manager, local-path-storage]` avoids the bootstrap chicken-and-egg where the webhook blocks creation of the namespace that hosts it.
+3. **`isCA: true` kustomize patch on the webhook Certificate** — upstream chart omits it; without CA:TRUE + keyCertSign, Go strict x509 verification rejects the injected caBundle with "parent certificate cannot sign this kind of certificate". Patch is the minimal viable fix; candidate for upstream PR (see findings).
+4. **No capsule-proxy in Phase 0–1** — proxy is only needed for multi-tenant RBAC filtering for UI/kubectl users; the lab uses cluster-admin kubeconfig (single operator). Proxy adds Deployment+Service+Ingress+TLS without validating anything new.
+5. **No ServiceMonitor** — lab has no Prometheus; chart default would fail (CRD missing).
+6. **Tenant status polling with `wait_for 30`** — webhook-accepted ≠ reconciled. Controller typically sets `status.state=Active` within 1–2s; 30s covers slow CI.
+7. **`auth can-i` exit code semantics in BATS** — `-q` answer "no" returns exit 1; the PASS assertion is `$status -eq 1`.
+
+### Upstream contribution candidates discovered
+
+- **CAPSULE-001**: chart's `certManager.generateCertificates: true` produces a Certificate without `isCA: true`, so the resulting leaf cert can't serve as its own CA bundle under strict x509. Proposed fix: either default `isCA: true` or ship a two-tier Issuer pattern (SelfSigned → CA Certificate → CA Issuer → webhook leaf).
+- **CAPSULE-002**: default `webhooks.hooks.namespaces.namespaceSelector` should exempt `capsule-system` + core system namespaces out of the box — everyone hits the bootstrap chicken-and-egg on first install.
+
+### Files changed
+
+- `furyctl.yaml` — single `plugins.kustomize` entry for Capsule
+- `mise.toml` — new `capsule:template` task, context guard in `all`
+- `manifests/plugins/kustomize/capsule/` — full rewrite (Makefile, kustomization.yaml, values.yaml, rendered chart, CRDs, isCA patch, namespace with PSA labels)
+- `tests/05-security.bats` — 2 new Capsule webhook assertions
+- `tests/06-capsule.bats` — new (10 cases)
+- `.forgia/fd/FD-002-*.md`, `.forgia/sdd/FD-002/SDD-00{1..4}-*.md`, `.forgia/fd/FD-002-threat-model.md` — full spec set
+
+---
+
 ## [FD-001] Kind multinode cluster with Cilium via furyctl — 2026-04-15
 
 ### Summary

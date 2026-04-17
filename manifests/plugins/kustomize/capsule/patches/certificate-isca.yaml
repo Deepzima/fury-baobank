@@ -1,0 +1,19 @@
+# Patch: make capsule-webhook-cert a self-signed CA.
+#
+# Why: the chart's default Certificate spec omits `isCA: true`, so cert-manager
+# produces a leaf cert with `Basic Constraints: CA:FALSE` and Key Usage without
+# `keyCertSign`. Go's x509 strict verification (client side of webhook calls)
+# then rejects the caBundle with:
+#   "parent certificate cannot sign this kind of certificate"
+# The resulting symptom: every CREATE/UPDATE on the Tenant CR (and any other
+# resource going through tenants.projectcapsule.dev) fails with an x509 TLS
+# error. Adding isCA:true forces cert-manager to mint a self-signed CA cert
+# that can both sign (itself) and serve as the webhook server TLS leaf — the
+# minimal viable fix until Capsule chart gains an upstream isCA option.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: capsule-webhook-cert
+  namespace: capsule-system
+spec:
+  isCA: true

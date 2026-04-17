@@ -40,3 +40,24 @@ load 'helpers'
     return 1
   fi
 }
+
+# --- Capsule tenancy boundary checks (FD-002 threat model rec #11) ---
+
+@test "Capsule ValidatingWebhookConfiguration exists (tenancy boundary)" {
+  run kctl get validatingwebhookconfiguration -l app.kubernetes.io/name=capsule -o name
+  [ "$status" -eq 0 ]
+  [ -n "$output" ]
+}
+
+@test "No rogue Capsule webhook points outside capsule-system" {
+  # Every webhook client config for a Capsule-owned webhook must point at a
+  # service inside capsule-system. An attacker who swaps the service target
+  # could intercept admission reviews.
+  run kctl get validatingwebhookconfiguration -l app.kubernetes.io/name=capsule \
+    -o jsonpath='{range .items[*].webhooks[*]}{.clientConfig.service.namespace}{"\n"}{end}'
+  [ "$status" -eq 0 ]
+  while IFS= read -r ns; do
+    [ -z "$ns" ] && continue
+    [ "$ns" = "capsule-system" ] || { echo "FAIL: webhook points at namespace '$ns' (expected capsule-system)" >&2; return 1; }
+  done <<< "$output"
+}

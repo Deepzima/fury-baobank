@@ -84,6 +84,10 @@ kubectl --context "kind-${CLUSTER_NAME}" port-forward \\
 description = "Verify Hubble relay rejects unauthenticated gRPC"
 run = "bash scripts/hubble-mtls-check.sh"
 
+[tasks."capsule:template"]
+description = "Regenerate Capsule kustomize bundle from upstream chart (manual, network)"
+run = "make -C manifests/plugins/kustomize/capsule template"
+
 [tasks.test]
 description = "Run the full BATS E2E test suite (assumes cluster is up and Cilium installed)"
 depends = ["install-cni"]
@@ -92,7 +96,18 @@ run = "bats --tap tests/"
 [tasks.all]
 description = "Full setup + test (sequential): up -> install-cni -> test"
 depends = ["test"]
-run = 'echo "==> fury-baobank end-to-end validation passed"'
+run = """
+set -euo pipefail
+# Context guard: ensure we never accidentally leak test fixtures to a non-lab
+# cluster (threat model FD-002 rec #12). Fail loud if somehow the current
+# kubectl context is NOT the lab cluster.
+CURRENT=$(kubectl config current-context)
+if [ "$CURRENT" != "kind-${CLUSTER_NAME}" ]; then
+  echo "ERROR: current context '$CURRENT' is not 'kind-${CLUSTER_NAME}' — refusing to mark validation passed" >&2
+  exit 1
+fi
+echo "==> fury-baobank end-to-end validation passed"
+"""
 
 [tasks.down]
 description = "Delete Kind cluster"

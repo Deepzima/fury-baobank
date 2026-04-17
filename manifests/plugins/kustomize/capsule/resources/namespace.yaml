@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: capsule-system
+  labels:
+    name: capsule-system
+    # Enforce restricted PSA on capsule-system — the controller runs with
+    # minimal privileges; any additional privileged pod here would violate
+    # this label and fail to schedule (threat model SDD-001 controller E).
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
