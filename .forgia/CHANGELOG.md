@@ -1,5 +1,38 @@
 # Changelog
 
+## [FD-003] OpenBao per-tenant secret management via Bank-Vaults operator — 2026-04-18
+
+### Summary
+
+OpenBao-as-a-Service validated: Bank-Vaults operator v1.23.4 + webhook v1.22.2 deployed as furyctl kustomize plugins. Per-tenant architecture — each Capsule tenant gets a dedicated OpenBao instance (`reevo-ob-id-<name>`) with its own Raft storage, unseal keys, KV-v2, and Kubernetes auth. All 5 SDDs completed; 59/59 BATS pass (40 FD-001/002 + 19 FD-003).
+
+### SDDs completed
+
+- **SDD-001** Bank-Vaults operator kustomize plugin (OCI chart render, CRD, log level patch debug→info)
+- **SDD-002** Bank-Vaults webhook kustomize plugin (cert-manager two-tier CA — no isCA patch needed unlike Capsule)
+- **SDD-003** Per-tenant OpenBao provisioning (Vault CR template, 2 test tenants, RBAC for sidecar)
+- **SDD-004** 19-case BATS suite (control plane + per-tenant + 5 cross-tenant isolation tests)
+- **SDD-005** Integration wiring (furyctl.yaml + mise bank-vaults:template + 05-security.bats extended)
+
+### Key decisions
+
+1. **OpenBao paths `/openbao/config` + `/openbao/data`** — the OpenBao image uses different paths than HashiCorp Vault (`/vault/`). Required explicit `vaultContainerSpec` with correct mountPaths. Undocumented in Bank-Vaults — discovered via crash debugging.
+2. **ServiceAccount `default` + explicit RBAC** — the operator does NOT create a ServiceAccount or RBAC for the bank-vaults sidecar. The sidecar needs `get/create/update` on Secrets for unseal keys. Created `tenant-vault-rbac-template.yaml` applied per-tenant.
+3. **Operator log level patched debug→info** — chart hardcodes `OPERATOR_LOG_LEVEL=debug` with no values.yaml key. Debug logs may contain unseal keys across tenant instances. Patched via kustomize strategic merge.
+4. **kapp strips `app.kubernetes.io/*` labels** — all BATS tests use name-based selectors instead of label selectors (same issue as Capsule FD-002).
+5. **Configurer needs 30-60s after unseal** — `setup_file` waits for `vault policy list | grep admin` (not just `secrets list`) to confirm full externalConfig reconciliation.
+6. **Audit log at `/tmp/audit.log`** — OpenBao runs as non-root, `/vault/logs/` does not exist in the image. `/tmp/` is writable.
+7. **OCI chart registry** — Bank-Vaults moved from `kubernetes-charts.banzaicloud.com` (dead) to `oci://ghcr.io/bank-vaults/helm-charts/`. No `helm repo add` needed.
+8. **Webhook has proper two-tier CA** — unlike Capsule, the webhook chart ships SelfSigned Issuer → CA Certificate (`isCA: true`) → CA Issuer → leaf. No patch needed.
+
+### Upstream findings
+
+- **BANK-VAULTS-001**: operator does not create ServiceAccount or RBAC for the bank-vaults sidecar — every user must manually create a Role/RoleBinding for Secret access in the Vault namespace.
+- **BANK-VAULTS-002**: `OPERATOR_LOG_LEVEL=debug` hardcoded in the Deployment template with no values.yaml override. Security concern for multi-tenant deployments.
+- **BANK-VAULTS-003**: no documentation for OpenBao path differences (`/openbao/` vs `/vault/`). Community example in bank-vaults/bank-vaults#3543 uses wrong paths.
+
+---
+
 ## [FD-002] Capsule multi-tenancy via furyctl kustomize plugin — 2026-04-17
 
 ### Summary

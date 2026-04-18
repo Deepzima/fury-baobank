@@ -1,7 +1,7 @@
 ---
 id: "FD-003"
 title: "OpenBao secret management via Bank-Vaults operator"
-status: in-progress
+status: closed
 priority: high
 effort: high
 impact: high
