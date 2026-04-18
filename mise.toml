@@ -110,14 +110,17 @@ run = "bash scenarios/scen-secret-inject/scripts/setup-consumer.sh"
 
 [tasks."scen:secret-inject:provision"]
 description = "Provision AppRole auth + test secret on baobank OpenBao"
+depends = ["scen:secret-inject:up"]
 run = "bash scenarios/scen-secret-inject/scripts/provision-approle.sh"
 
 [tasks."scen:secret-inject:deploy"]
 description = "Deploy test app on consumer cluster with vault-env injection"
+depends = ["scen:secret-inject:provision"]
 run = "bash scenarios/scen-secret-inject/scripts/deploy-consumer-app.sh"
 
 [tasks."scen:secret-inject:test"]
 description = "Run cross-cluster BATS tests"
+depends = ["scen:secret-inject:deploy"]
 run = "bats --tap scenarios/scen-secret-inject/tests/"
 
 [tasks."scen:secret-inject:down"]
@@ -126,8 +129,8 @@ run = "bash scenarios/scen-secret-inject/scripts/teardown.sh"
 
 [tasks."scen:secret-inject:all"]
 description = "Full cross-cluster scenario: up → provision → deploy → test"
-depends = ["scen:secret-inject:deploy"]
-run = "bats --tap scenarios/scen-secret-inject/tests/"
+depends = ["scen:secret-inject:test"]
+run = 'echo "==> Cross-cluster scenario passed"'
 
 [tasks.all]
 description = "Full setup + test (sequential): up -> install-cni -> test"
