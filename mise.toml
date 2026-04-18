@@ -102,6 +102,33 @@ description = "Run the full BATS E2E test suite (assumes cluster is up and Ciliu
 depends = ["install-cni"]
 run = "bats --tap tests/"
 
+# --- Scenario: cross-cluster secret injection (FD-004) ---
+
+[tasks."scen:secret-inject:up"]
+description = "Create consumer cluster + expose OpenBao for cross-cluster scenario"
+run = "bash scenarios/scen-secret-inject/scripts/setup-consumer.sh"
+
+[tasks."scen:secret-inject:provision"]
+description = "Provision AppRole auth + test secret on baobank OpenBao"
+run = "bash scenarios/scen-secret-inject/scripts/provision-approle.sh"
+
+[tasks."scen:secret-inject:deploy"]
+description = "Deploy test app on consumer cluster with vault-env injection"
+run = "bash scenarios/scen-secret-inject/scripts/deploy-consumer-app.sh"
+
+[tasks."scen:secret-inject:test"]
+description = "Run cross-cluster BATS tests"
+run = "bats --tap scenarios/scen-secret-inject/tests/"
+
+[tasks."scen:secret-inject:down"]
+description = "Teardown consumer cluster + cleanup"
+run = "bash scenarios/scen-secret-inject/scripts/teardown.sh"
+
+[tasks."scen:secret-inject:all"]
+description = "Full cross-cluster scenario: up → provision → deploy → test"
+depends = ["scen:secret-inject:deploy"]
+run = "bats --tap scenarios/scen-secret-inject/tests/"
+
 [tasks.all]
 description = "Full setup + test (sequential): up -> install-cni -> test"
 depends = ["test"]

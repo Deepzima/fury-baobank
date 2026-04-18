@@ -2,9 +2,9 @@
 id: "SDD-001"
 fd: "FD-004"
 title: "Consumer Kind cluster + OpenBao exposure"
-status: planned
-agent: ""
-assigned_to: ""
+status: assigned
+agent: "claude-code"
+assigned_to: "claude-code"
 created: "2026-04-18"
 started: ""
 completed: ""

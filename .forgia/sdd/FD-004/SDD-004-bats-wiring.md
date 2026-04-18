@@ -2,9 +2,9 @@
 id: "SDD-004"
 fd: "FD-004"
 title: "BATS test suite + integration wiring"
-status: planned
-agent: ""
-assigned_to: ""
+status: assigned
+agent: "claude-code"
+assigned_to: "claude-code"
 created: "2026-04-18"
 started: ""
 completed: ""
