@@ -2,7 +2,7 @@
 id: "SDD-002"
 fd: "FD-004"
 title: "AppRole auth provisioning on baobank"
-status: assigned
+status: completed
 agent: "claude-code"
 assigned_to: "claude-code"
 created: "2026-04-18"
@@ -109,24 +109,28 @@ Deliverables:
 
 ### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual | name -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-18
+- **Completed**: 2026-04-18
+- **Duration / Durata**: ~20 min
 
 ### Decisions / Decisioni
 
-1. <!-- decision 1: what and why -->
+1. MAJOR PIVOT: replaced AppRole with cross-cluster Kubernetes auth. User asked "can we put the webhook on the consumer cluster?" — this is far more SaaS-realistic.
+2. token_reviewer_jwt required — OpenBao needs a SA with auth-delegator to call TokenReview on consumer API server.
+3. vault-path annotation without auth/ prefix (webhook adds it — discovered via double auth/auth/ bug).
+4. Policy written via sh -c pipe (heredoc doesn't work through kubectl exec).
 
 ### Output
 
 - **Commit(s)**: <!-- hash -->
 - **PR**: <!-- link -->
 - **Files created/modified**:
-  - `scenarios/scen-secret-inject/scripts/provision-approle.sh`
+  - `scenarios/scen-secret-inject/scripts/provision-approle.sh` (despite the name, now does K8s auth cross-cluster)
+  - `scenarios/scen-secret-inject/manifests/tenant-bao/k8s-auth-consumer.yaml` (reference doc)
 
 ### Retrospective / Retrospettiva
 
-- **What worked / Cosa ha funzionato**:
-- **What didn't / Cosa non ha funzionato**:
-- **Suggestions for future FDs / Suggerimenti per FD futuri**:
+- **What worked / Cosa ha funzionato**: K8s auth cross-cluster is cleaner than AppRole — zero static credentials.
+- **What didn't / Cosa non ha funzionato**: 403 permission denied took 3 debug rounds (double auth/ path, missing token_reviewer_jwt, wrong SA binding).
+- **Suggestions for future FDs / Suggerimenti per FD futuri**: Rename provision-approle.sh to provision-k8s-auth.sh in a future cleanup.

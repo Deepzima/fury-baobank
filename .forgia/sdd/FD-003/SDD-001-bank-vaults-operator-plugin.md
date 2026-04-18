@@ -2,12 +2,12 @@
 id: "SDD-001"
 fd: "FD-003"
 title: "Bank-Vaults operator kustomize plugin"
-status: assigned
+status: completed
 agent: "claude-code"
 assigned_to: "claude-code"
 created: "2026-04-17"
-started: ""
-completed: ""
+started: "2026-04-17"
+completed: "2026-04-17"
 tags: [bank-vaults, operator, kustomize, helm]
 ---
 
@@ -111,24 +111,31 @@ Render the Bank-Vaults vault-operator Helm chart (v1.23.x) into a kustomize-buil
 
 ### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-17
+- **Completed**: 2026-04-17
+- **Duration / Durata**: ~15 min
 
 ### Decisions / Decisioni
 
-1. <!-- decision 1: what and why -->
+1. Used OCI registry (`ghcr.io/bank-vaults/helm-charts`) — the old banzaicloud Helm repo URL (`https://kubernetes-charts.banzaicloud.com`) is dead.
+2. Patched `OPERATOR_LOG_LEVEL` from `debug` to `info` via kustomize strategic merge — the chart hardcodes debug with no values key to override it.
 
 ### Output
 
-- **Commit(s)**: <!-- hash -->
-- **PR**: <!-- link -->
+- **Commit(s)**: part of FD-003 implementation commit
+- **PR**: N/A
 - **Files created/modified**:
-  - `path/to/file`
+  - `manifests/plugins/kustomize/bank-vaults-operator/Makefile`
+  - `manifests/plugins/kustomize/bank-vaults-operator/values.yaml`
+  - `manifests/plugins/kustomize/bank-vaults-operator/kustomization.yaml`
+  - `manifests/plugins/kustomize/bank-vaults-operator/resources/namespace.yaml`
+  - `manifests/plugins/kustomize/bank-vaults-operator/resources/vault-operator-from-helm.yaml`
+  - `manifests/plugins/kustomize/bank-vaults-operator/crds/vault.banzaicloud.com_vaults.yaml`
+  - `manifests/plugins/kustomize/bank-vaults-operator/patches/operator-log-level.yaml`
 
 ### Retrospective / Retrospettiva
 
-- **What worked**:
-- **What didn't**:
-- **Suggestions for future FDs**:
+- **What worked**: Running `helm show values` before writing `values.yaml` — caught chart structure early.
+- **What didn't**: Old chart repo URL is dead; needed to discover the OCI registry at `ghcr.io/bank-vaults/helm-charts`.
+- **Suggestions for future FDs**: Document OCI migration in upstream findings — banzaicloud URLs are no longer valid.

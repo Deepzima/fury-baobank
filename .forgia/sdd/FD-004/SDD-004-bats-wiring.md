@@ -2,7 +2,7 @@
 id: "SDD-004"
 fd: "FD-004"
 title: "BATS test suite + integration wiring"
-status: assigned
+status: completed
 agent: "claude-code"
 assigned_to: "claude-code"
 created: "2026-04-18"
@@ -116,25 +116,28 @@ Deliverables:
 
 ### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual | name -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-18
+- **Completed**: 2026-04-18
+- **Duration / Durata**: ~10 min
 
 ### Decisions / Decisioni
 
-1. <!-- decision 1: what and why -->
+1. Mise task chain: all → test → deploy → provision → up (sequential deps).
+2. 13 BATS tests (not 12 originally planned — added SA check).
+3. Global gitignore had *secret* pattern blocking the scenario dir — fixed with git add -f.
 
 ### Output
 
 - **Commit(s)**: <!-- hash -->
 - **PR**: <!-- link -->
 - **Files created/modified**:
-  - `tests/08-cross-cluster.bats`
-  - `mise.toml` (scen:secret-inject tasks)
+  - `scenarios/scen-secret-inject/tests/01-cross-cluster.bats`
+  - `scenarios/scen-secret-inject/README.md`
+  - `mise.toml` (scen:secret-inject:* tasks)
 
 ### Retrospective / Retrospettiva
 
-- **What worked / Cosa ha funzionato**:
-- **What didn't / Cosa non ha funzionato**:
-- **Suggestions for future FDs / Suggerimenti per FD futuri**:
+- **What worked / Cosa ha funzionato**: Mise depends chain makes the full scenario one command.
+- **What didn't / Cosa non ha funzionato**: Global gitignore *secret* pattern blocked the entire scenario — only caught at commit time.
+- **Suggestions for future FDs / Suggerimenti per FD futuri**: Rename scenario to avoid "secret" in path, or add exception to global gitignore.

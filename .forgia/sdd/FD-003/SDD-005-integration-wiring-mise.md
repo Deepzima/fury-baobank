@@ -2,12 +2,12 @@
 id: "SDD-005"
 fd: "FD-003"
 title: "Integration wiring: furyctl plugins + mise targets + E2E"
-status: assigned
+status: completed
 agent: "claude-code"
 assigned_to: "claude-code"
 created: "2026-04-17"
-started: ""
-completed: ""
+started: "2026-04-17"
+completed: "2026-04-18"
 tags: [integration, mise, furyctl, wiring, e2e]
 ---
 
@@ -133,24 +133,27 @@ developer terminal
 
 ### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-17
+- **Completed**: 2026-04-18
+- **Duration / Durata**: ~10 min
 
 ### Decisions / Decisioni
 
-1. <!-- decision 1 -->
+1. `furyctl.yaml`: added 2 new `plugins.kustomize` entries (operator + webhook), with operator ordered before webhook for CRD registration.
+2. `bank-vaults:template` mise task runs both Makefiles (operator + webhook).
+3. Total test count: 59 (40 from FD-001/FD-002 + 19 from FD-003).
 
 ### Output
 
-- **Commit(s)**: <!-- hash -->
-- **PR**: <!-- link -->
+- **Commit(s)**: part of FD-003 implementation commit
+- **PR**: N/A
 - **Files created/modified**:
-  - `path/to/file`
+  - `furyctl.yaml`
+  - `mise.toml`
 
 ### Retrospective / Retrospettiva
 
-- **What worked**:
-- **What didn't**:
-- **Suggestions for future FDs**:
+- **What worked**: Same wiring pattern as FD-002 — straightforward to replicate.
+- **What didn't**: First full run had a DNS test flake, resolved by ensuring cluster freshness before test execution.
+- **Suggestions for future FDs**: N/A.

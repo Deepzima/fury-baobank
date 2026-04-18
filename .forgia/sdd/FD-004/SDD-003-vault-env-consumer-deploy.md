@@ -2,7 +2,7 @@
 id: "SDD-003"
 fd: "FD-004"
 title: "vault-env consumer deployment"
-status: assigned
+status: completed
 agent: "claude-code"
 assigned_to: "claude-code"
 created: "2026-04-18"
@@ -106,26 +106,30 @@ Deliverables:
 
 ### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual | name -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-18
+- **Completed**: 2026-04-18
+- **Duration / Durata**: ~15 min
 
 ### Decisions / Decisioni
 
-1. <!-- decision 1: what and why -->
+1. PIVOT: instead of vault-env init container, install the full Bank-Vaults webhook on consumer cluster via Helm.
+2. Consumer app uses standard webhook annotations (same as on baobank) — vault-addr points to remote OpenBao.
+3. Self-signed webhook cert on consumer (no cert-manager — keep consumer minimal).
+4. envsubst for VAULT_ADDR substitution in manifest.
 
 ### Output
 
 - **Commit(s)**: <!-- hash -->
 - **PR**: <!-- link -->
 - **Files created/modified**:
-  - `scenarios/scen-secret-inject/manifests/approle-credentials.yaml`
-  - `scenarios/scen-secret-inject/manifests/consumer-app.yaml`
+  - `scenarios/scen-secret-inject/manifests/tenant-env/consumer-app.yaml`
+  - `scenarios/scen-secret-inject/manifests/tenant-env/webhook-chart-values.yaml`
+  - `scenarios/scen-secret-inject/manifests/tenant-env/kustomization.yaml`
   - `scenarios/scen-secret-inject/scripts/deploy-consumer-app.sh`
 
 ### Retrospective / Retrospettiva
 
-- **What worked / Cosa ha funzionato**:
-- **What didn't / Cosa non ha funzionato**:
-- **Suggestions for future FDs / Suggerimenti per FD futuri**:
+- **What worked / Cosa ha funzionato**: Webhook on consumer gives identical DX to local injection — same annotations, same behavior.
+- **What didn't / Cosa non ha funzionato**: vault-env init container didn't resolve vault: refs (it works as process wrapper, not standalone).
+- **Suggestions for future FDs / Suggerimenti per FD futuri**: Webhook approach is the correct SaaS pattern — document as the recommended cross-cluster method.

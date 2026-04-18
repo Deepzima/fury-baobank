@@ -2,12 +2,12 @@
 id: "SDD-003"
 fd: "FD-003"
 title: "Per-tenant OpenBao provisioning via Vault CR"
-status: assigned
+status: completed
 agent: "claude-code"
 assigned_to: "claude-code"
 created: "2026-04-17"
-started: ""
-completed: ""
+started: "2026-04-17"
+completed: "2026-04-17"
 tags: [openbao, vault-cr, per-tenant, provisioning]
 ---
 
@@ -126,24 +126,33 @@ Each instance gets: OpenBao StatefulSet with Raft storage, auto-unseal via K8s S
 
 ### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-17
+- **Completed**: 2026-04-17
+- **Duration / Durata**: ~45 min (most time spent debugging)
 
 ### Decisions / Decisioni
 
-1. <!-- decision 1 -->
+1. OpenBao uses `/openbao/config` and `/openbao/data` (not `/vault/`) — required explicit `vaultContainerSpec` to set correct paths.
+2. ServiceAccount `default` used (the operator doesn't create a custom SA).
+3. RBAC Role/RoleBinding created for the bank-vaults sidecar to get/create/update Secrets in the tenant namespace.
+4. Audit log path set to `/tmp/audit.log` (not `/vault/logs/` — that path doesn't exist in the OpenBao image).
 
 ### Output
 
-- **Commit(s)**: <!-- hash -->
-- **PR**: <!-- link -->
+- **Commit(s)**: part of FD-003 implementation commit
+- **PR**: N/A
 - **Files created/modified**:
-  - `path/to/file`
+  - `manifests/plugins/kustomize/openbao-tenant-template/vault-cr-template.yaml`
+  - `tests/fixtures/tenant-alpha-vault-cr.yaml`
+  - `tests/fixtures/tenant-alpha-capsule.yaml`
+  - `tests/fixtures/tenant-beta-vault-cr.yaml`
+  - `tests/fixtures/tenant-beta-capsule.yaml`
+  - `tests/fixtures/tenant-netpol-template.yaml`
+  - `tests/fixtures/tenant-vault-rbac-template.yaml`
 
 ### Retrospective / Retrospettiva
 
-- **What worked**:
-- **What didn't**:
-- **Suggestions for future FDs**:
+- **What worked**: Community Vault CR example from bank-vaults/bank-vaults#3543 provided a working baseline.
+- **What didn't**: 3 crash-debug cycles — wrong paths (`/vault/` vs `/openbao/`), missing ServiceAccount, missing RBAC for sidecar, wrong audit log path.
+- **Suggestions for future FDs**: Document OpenBao path differences as upstream finding BANK-VAULTS-003 — this is a common trap when using the operator with OpenBao instead of Vault.

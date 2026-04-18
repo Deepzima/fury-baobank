@@ -2,12 +2,12 @@
 id: "SDD-004"
 fd: "FD-003"
 title: "Tenant isolation BATS test suite"
-status: assigned
+status: completed
 agent: "claude-code"
 assigned_to: "claude-code"
 created: "2026-04-17"
-started: ""
-completed: ""
+started: "2026-04-17"
+completed: "2026-04-17"
 tags: [bats, testing, isolation, security]
 ---
 
@@ -149,24 +149,28 @@ Tests (grouped):
 
 ### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-17
+- **Completed**: 2026-04-17
+- **Duration / Durata**: ~30 min
 
 ### Decisions / Decisioni
 
-1. <!-- decision 1 -->
+1. `vault_exec` helper fetches root token from the `unseal-keys` Secret per-tenant — each tenant has its own token.
+2. Wait for policy list (not just secrets list) to confirm configurer sidecar completion — policies are the last thing configured.
+3. kapp strips `app.kubernetes.io` labels — all selectors in tests use resource name directly instead of label selectors.
+4. 19 tests implemented (not 22 originally planned) — NetworkPolicy test replaced with RBAC test, some tests consolidated.
 
 ### Output
 
-- **Commit(s)**: <!-- hash -->
-- **PR**: <!-- link -->
+- **Commit(s)**: part of FD-003 implementation commit
+- **PR**: N/A
 - **Files created/modified**:
-  - `path/to/file`
+  - `tests/07-openbao.bats`
+  - `tests/05-security.bats` (extended with Bank-Vaults webhook assertions)
 
 ### Retrospective / Retrospettiva
 
-- **What worked**:
-- **What didn't**:
-- **Suggestions for future FDs**:
+- **What worked**: Waiting for policy list catches configurer timing correctly — avoids flaky tests from premature assertions.
+- **What didn't**: First `vault_exec` implementation had no `VAULT_TOKEN` set, resulting in 403 errors. kapp label stripping caused selector failures again (same issue as FD-002).
+- **Suggestions for future FDs**: Always use name-based selectors for kapp-managed resources — label selectors are unreliable due to kapp stripping `app.kubernetes.io` labels.

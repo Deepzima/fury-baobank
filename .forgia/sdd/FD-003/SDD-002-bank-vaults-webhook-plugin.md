@@ -2,12 +2,12 @@
 id: "SDD-002"
 fd: "FD-003"
 title: "Bank-Vaults webhook kustomize plugin"
-status: assigned
+status: completed
 agent: "claude-code"
 assigned_to: "claude-code"
 created: "2026-04-17"
-started: ""
-completed: ""
+started: "2026-04-17"
+completed: "2026-04-17"
 tags: [bank-vaults, webhook, kustomize, helm, cert-manager]
 ---
 
@@ -111,24 +111,28 @@ Render the Bank-Vaults vault-secrets-webhook Helm chart (v1.22.x) into a kustomi
 
 ### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-17
+- **Completed**: 2026-04-17
+- **Duration / Durata**: ~10 min
 
 ### Decisions / Decisioni
 
-1. <!-- decision 1 -->
+1. Webhook chart uses proper two-tier CA (`isCA: true` on CA cert) — no kustomize patch needed unlike the Capsule webhook (FD-002).
+2. Set `failurePolicy: Fail`, `timeoutSeconds: 5`, `replicas: 2` in `values.yaml`.
 
 ### Output
 
-- **Commit(s)**: <!-- hash -->
-- **PR**: <!-- link -->
+- **Commit(s)**: part of FD-003 implementation commit
+- **PR**: N/A
 - **Files created/modified**:
-  - `path/to/file`
+  - `manifests/plugins/kustomize/bank-vaults-webhook/Makefile`
+  - `manifests/plugins/kustomize/bank-vaults-webhook/values.yaml`
+  - `manifests/plugins/kustomize/bank-vaults-webhook/kustomization.yaml`
+  - `manifests/plugins/kustomize/bank-vaults-webhook/resources/vault-secrets-webhook-from-helm.yaml`
 
 ### Retrospective / Retrospettiva
 
-- **What worked**:
-- **What didn't**:
-- **Suggestions for future FDs**:
+- **What worked**: Checking the rendered Certificate confirmed the two-tier CA pattern — no patch needed.
+- **What didn't**: N/A, clean implementation.
+- **Suggestions for future FDs**: Bank-Vaults webhook chart is better engineered than Capsule for cert-manager integration.

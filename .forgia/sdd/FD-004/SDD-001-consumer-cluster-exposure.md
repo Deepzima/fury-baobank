@@ -2,7 +2,7 @@
 id: "SDD-001"
 fd: "FD-004"
 title: "Consumer Kind cluster + OpenBao exposure"
-status: assigned
+status: completed
 agent: "claude-code"
 assigned_to: "claude-code"
 created: "2026-04-18"
@@ -96,14 +96,16 @@ The consumer cluster is deliberately minimal: no CNI plugins, no operators, no w
 
 ### Agent / Agente
 
-- **Executor**: <!-- openhands | claude-code | manual | name -->
-- **Started**: <!-- timestamp -->
-- **Completed**: <!-- timestamp -->
-- **Duration / Durata**: <!-- total time -->
+- **Executor**: claude-code
+- **Started**: 2026-04-18
+- **Completed**: 2026-04-18
+- **Duration / Durata**: ~10 min
 
 ### Decisions / Decisioni
 
-1. <!-- decision 1: what and why -->
+1. NodePort 30820 for OpenBao exposure (static port for predictability).
+2. Docker IP discovery via `docker inspect` on fury-baobank-control-plane container.
+3. Scenario has its own Capsule tenant (scen-acme) — not reusing test tenants.
 
 ### Output
 
@@ -111,10 +113,14 @@ The consumer cluster is deliberately minimal: no CNI plugins, no operators, no w
 - **PR**: <!-- link -->
 - **Files created/modified**:
   - `scenarios/scen-secret-inject/cluster/kind-consumer.yaml`
-  - `mise.toml` (new tasks)
+  - `scenarios/scen-secret-inject/manifests/tenant-bao/tenant-acme.yaml`
+  - `scenarios/scen-secret-inject/manifests/tenant-bao/vault-rbac-acme.yaml`
+  - `scenarios/scen-secret-inject/manifests/tenant-bao/vault-cr-acme.yaml`
+  - `scenarios/scen-secret-inject/manifests/tenant-bao/nodeport-acme.yaml`
+  - `scenarios/scen-secret-inject/scripts/setup-consumer.sh`
 
 ### Retrospective / Retrospettiva
 
-- **What worked / Cosa ha funzionato**:
-- **What didn't / Cosa non ha funzionato**:
-- **Suggestions for future FDs / Suggerimenti per FD futuri**:
+- **What worked / Cosa ha funzionato**: Kind clusters on same Docker bridge can reach each other via container IP.
+- **What didn't / Cosa non ha funzionato**: Initial design reused test tenant fixtures — user correctly requested dedicated scenario tenant.
+- **Suggestions for future FDs / Suggerimenti per FD futuri**: Scenarios should always have their own fixtures.
