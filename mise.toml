@@ -132,6 +132,30 @@ description = "Full cross-cluster scenario: up → provision → deploy → test
 depends = ["scen:secret-inject:test"]
 run = 'echo "==> Cross-cluster scenario passed"'
 
+# --- Scenario: PKI/CA engine (FD-005) ---
+
+[tasks."scen:pki-ca:setup"]
+description = "Setup two-tier PKI (Root CA + Intermediate) + K8s roles on tenant OpenBao"
+run = """
+set -euo pipefail
+bash scenarios/scen-pki-ca/scripts/setup-pki.sh
+bash scenarios/scen-pki-ca/scripts/setup-roles.sh
+"""
+
+[tasks."scen:pki-ca:test"]
+description = "Run PKI BATS tests (cert issuance, chain validation, revocation)"
+depends = ["scen:pki-ca:setup"]
+run = "bats --tap scenarios/scen-pki-ca/tests/"
+
+[tasks."scen:pki-ca:teardown"]
+description = "Disable PKI engines on tenant OpenBao"
+run = "bash scenarios/scen-pki-ca/scripts/teardown-pki.sh"
+
+[tasks."scen:pki-ca:all"]
+description = "Full PKI scenario: setup → test"
+depends = ["scen:pki-ca:test"]
+run = 'echo "==> PKI/CA scenario passed"'
+
 [tasks.all]
 description = "Full setup + test (sequential): up -> install-cni -> test"
 depends = ["test"]

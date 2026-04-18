@@ -1,7 +1,7 @@
 ---
 id: "FD-005"
 title: "PKI/CA engine for Kubernetes certificate management"
-status: in-progress
+status: closed
 priority: high
 effort: high
 impact: high

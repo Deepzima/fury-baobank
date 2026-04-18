@@ -2,9 +2,9 @@
 id: "SDD-005"
 fd: "FD-005"
 title: "Integration wiring + scenario lifecycle"
-status: planned
-agent: ""
-assigned_to: ""
+status: assigned
+agent: "claude-code"
+assigned_to: "claude-code"
 created: "2026-04-18"
 started: ""
 completed: ""
