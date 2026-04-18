@@ -1,68 +1,116 @@
 # fury-baobank
 
-Lab for testing **OpenBao** + **Bank-Vaults** together on Kubernetes Fury Distribution.
+PoC lab validating **OpenBao-as-a-Service** on Kubernetes Fury Distribution — multi-tenant secret management where each customer gets a dedicated, isolated Vault instance.
 
-## What this lab does
+## Stack
 
-Deploys a complete secret management stack on a local Kind cluster:
-
-1. **OpenBao** — secret storage server (Vault-compatible, MPL 2.0)
-2. **Bank-Vaults Operator** — deploys and manages OpenBao on K8s
-3. **Bank-Vaults Webhook** — mutating webhook for transparent secret injection into pods
-4. **Sample app** — demonstrates secret injection without any Vault-aware code
-
-## Why
-
-- Validate that Bank-Vaults tooling works with OpenBao (API-compatible but not officially supported)
-- Provide a reference for a future KFD `secrets` module
-- Test scenarios: unseal, HA, secret injection, rotation
+| Layer | Component | FD | Tests |
+|---|---|---|---|
+| Network | Cilium (kube-proxy-replacement, Hubble mTLS) | FD-001 | 26 |
+| Tenancy | Capsule (multi-tenant controller, quota, nodeSelector) | FD-002 | 12 |
+| Secrets | Bank-Vaults operator + webhook, per-tenant OpenBao | FD-003 | 19+2 |
+| **Total** | | | **59 BATS** |
 
 ## Quick start
 
 ```bash
+# Install tools
 mise install
-mise run setup-all
-mise run scenario-inject
+
+# Full stack: Kind cluster → Cilium → Capsule → Bank-Vaults → 59 BATS tests
+mise run all
 ```
 
-Ask Claude Code:
-> "Show me the injected secrets in the sample-app pod"
+## Scenarios (opt-in, isolated from main tests)
+
+| Scenario | FD | What it validates |
+|---|---|---|
+| [scen-secret-inject](scenarios/scen-secret-inject/) | FD-004 | Cross-cluster: consumer Kind cluster reads secrets from baobank OpenBao via AppRole + vault-env |
+| scen-pki-ca | FD-005 | PKI/CA: OpenBao as Root+Intermediate CA for K8s certificates, revocation via CRL |
+| scen-hsm-transit | FD-006 | Premium tier: HSM-backed unseal (softhsm-kube) + etcd encryption via Transit KMS v2 |
+
+### Run a scenario
+
+```bash
+# Cross-cluster secret injection (FD-004)
+bash scenarios/scen-secret-inject/scripts/setup-consumer.sh
+bash scenarios/scen-secret-inject/scripts/provision-approle.sh
+bash scenarios/scen-secret-inject/scripts/deploy-consumer-app.sh
+mise run scen:secret-inject:test
+
+# Cleanup
+mise run scen:secret-inject:down
+```
 
 ## Structure
 
 ```
 fury-baobank/
-  .zlab.yaml           Kind cluster config (3 nodes, zone labels for multi-zone tests)
-  mise.toml            Task definitions (up, setup, scenarios, test)
-  furyctl.yaml         Minimal KFD distribution (monitoring for observability)
-  cluster/             Extra Kind config
-  manifests/           OpenBao + Bank-Vaults manifests (Kustomize)
-    openbao/           OpenBao StatefulSet, config, auto-unseal
-    bank-vaults/       Operator + webhook deployment
-    sample-app/        Test app demonstrating secret injection
-  scripts/             Helper scripts (init, unseal, seed secrets)
-  scenarios/           Test scenarios with expected flow
-  tests/               BATS tests
+├── cluster/                          Kind cluster config (3 nodes)
+├── furyctl.yaml                      KFD distribution (Cilium + plugins)
+├── mise.toml                         Task definitions
+├── manifests/
+│   ├── overrides/                    Cilium kube-proxy-replacement patches
+│   └── plugins/kustomize/
+│       ├── capsule/                  Capsule v0.12.4 (FD-002)
+│       ├── bank-vaults-operator/     Operator v1.23.4 (FD-003)
+│       ├── bank-vaults-webhook/      Webhook v1.22.2 (FD-003)
+│       └── openbao-tenant-template/  Vault CR template for per-tenant instances
+├── scenarios/
+│   └── scen-secret-inject/           Cross-cluster injection (FD-004)
+│       ├── cluster/                  Consumer Kind config
+│       ├── manifests/
+│       │   ├── tenant-bao/           Baobank-side: Capsule tenant + OpenBao + NodePort
+│       │   └── tenant-env/           Consumer-side: app + vault-env init container
+│       ├── scripts/                  setup, provision, deploy, teardown
+│       └── tests/                    Scenario-specific BATS
+├── tests/
+│   ├── 00-cluster.bats → 06-capsule.bats   Infrastructure tests (FD-001/002)
+│   ├── 07-openbao.bats                      Per-tenant OpenBao + isolation (FD-003)
+│   ├── fixtures/                            Test tenant fixtures
+│   └── helpers.bash                         Shared BATS helpers
+├── scripts/                          Cilium override render, Hubble mTLS check
+├── docs/                             Architecture (C4 diagrams), Hubble queries
+└── .forgia/                          Forgia vault (FDs, SDDs, threat models)
 ```
 
-## Scenarios
+## Mise tasks
 
-| # | Name | What it tests |
+| Task | Description |
+|---|---|
+| `mise run all` | Full E2E: up → install-cni → 59 BATS tests |
+| `mise run up` | Create Kind cluster + label workers |
+| `mise run install-cni` | furyctl apply (Cilium + Capsule + Bank-Vaults) |
+| `mise run test` | Run all BATS tests |
+| `mise run down` | Delete Kind cluster |
+| `mise run capsule:template` | Regenerate Capsule kustomize bundle from chart |
+| `mise run bank-vaults:template` | Regenerate operator + webhook bundles |
+| `mise run scen:secret-inject:*` | Cross-cluster scenario lifecycle |
+
+## Architecture decisions
+
+- **Per-tenant OpenBao** (not shared) — physical isolation, each customer owns their Vault instance
+- **OpenBao** (not HashiCorp Vault) — MPL 2.0 license, API-compatible, Linux Foundation governance
+- **Bank-Vaults operator** — config-as-code via Vault CR, auto-unseal, zero CLI for steady-state
+- **Capsule** (not manual namespaces) — automated tenant onboarding with quota + RBAC + nodeSelector
+- **Cilium** (not kube-proxy) — kube-proxy-replacement, Hubble observability, mTLS
+
+## Upstream findings
+
+| ID | Project | Issue |
 |---|---|---|
-| 1 | [secret-injection](scenarios/01-secret-injection.md) | Pod gets secret via webhook, no code changes |
-| 2 | [auto-unseal](scenarios/02-auto-unseal.md) | OpenBao auto-unseals after restart |
-| 3 | [dynamic-db](scenarios/03-dynamic-db.md) | App gets dynamic DB credentials that rotate |
-| 4 | [ha-failover](scenarios/04-ha-failover.md) | Kill leader, cluster continues |
+| CAPSULE-001 | projectcapsule/capsule | Chart cert-manager Certificate missing `isCA: true` — breaks Go strict x509 |
+| CAPSULE-002 | projectcapsule/capsule | Default webhook blocks capsule-system namespace creation (bootstrap chicken-and-egg) |
+| BANK-VAULTS-001 | bank-vaults/vault-operator | Operator doesn't create ServiceAccount or RBAC for sidecar |
+| BANK-VAULTS-002 | bank-vaults/vault-operator | `OPERATOR_LOG_LEVEL=debug` hardcoded, no values override |
+| BANK-VAULTS-003 | bank-vaults/bank-vaults | No docs for OpenBao path differences (`/openbao/` vs `/vault/`) |
 
-## Notes
-
-- Bank-Vaults officially supports Vault 1.11.x-1.14.x. OpenBao claims API compatibility.
-  This lab validates that claim.
-- For unseal in the lab we use a local Kubernetes Secret (NOT production-safe).
-  Production would use AWS KMS, GCP KMS, Azure Key Vault, or HSM.
+See [cncf/capsule-isca-bug-report.md](../../cncf/capsule-isca-bug-report.md) for the full Capsule bug report.
 
 ## References
 
-- OpenBao: https://openbao.org/
-- Bank-Vaults: https://bank-vaults.dev/docs/
-- Docs comparison: [internal openbao-vs-bankvaults](https://github.com/Deepzima/fury-workspace/blob/main/tmp/openbao-vs-bankvaults.md) (private)
+- [OpenBao](https://openbao.org/) — MPL 2.0 Vault fork
+- [Bank-Vaults](https://bank-vaults.dev/docs/) — operator + webhook
+- [Capsule](https://projectcapsule.dev/) — multi-tenancy controller
+- [KFD](https://docs.sighup.io/) — Kubernetes Fury Distribution
+- [softhsm-kube](https://github.com/Deepzima/softhsm-kube) — SoftHSM2 as K8s pod (companion repo for FD-006)

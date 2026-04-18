@@ -193,16 +193,24 @@ sequenceDiagram
 
 ## Scope — What This Lab Validates
 
-- Bank-Vaults Operator can deploy OpenBao (not just Vault)
-- Bank-Vaults Webhook can inject OpenBao secrets into pods
-- Auto-unseal works with encrypted keys in a K8s Secret
-- Kubernetes auth method works for pod-to-OpenBao authentication
-- HA failover — killing the leader pod does not disrupt the cluster
+### Completed (59 BATS tests)
 
-## Out of Scope (Future Work)
+- **FD-001**: Kind 3-node cluster + Cilium CNI with kube-proxy-replacement + Hubble mTLS
+- **FD-002**: Capsule multi-tenancy (Tenant CRs, quota, namespace isolation, webhook enforcement)
+- **FD-003**: Bank-Vaults Operator deploys per-tenant OpenBao instances (not shared — each tenant has its own StatefulSet, Raft storage, unseal keys, KV-v2, Kubernetes auth)
+- Auto-unseal works with K8s Secret (lab-only; HSM upgrade planned in FD-006)
+- Bank-Vaults Webhook injects secrets into pods via annotations
+- Cross-tenant isolation: auth binding, RBAC, no wildcard namespaces
 
-- Multi-tenancy via Capsule (planned as separate PoC)
-- Cloud KMS unseal integration (AWS/GCP/Azure)
-- HSM integration
+### In-Progress Scenarios
+
+- **FD-004** (scen-secret-inject): Cross-cluster secret consumption — consumer Kind cluster reads secrets from baobank OpenBao via AppRole + vault-env init container
+- **FD-005** (scen-pki-ca): PKI/CA engine — OpenBao as two-tier CA (Root → Intermediate) for K8s-compatible certificates with SAN validation, revocation, CRL
+- **FD-006** (scen-hsm-transit): Premium security tier — HSM-backed unseal via softhsm-kube + etcd encryption-at-rest via Transit KMS v2
+
+### Out of Scope
+
+- Cloud KMS unseal (AWS/GCP/Azure) — lab is Kind-only
 - Cross-cluster replication
-- Vaultwarden integration for human password management
+- Vaultwarden for human password management
+- Production hardening (TLS everywhere, HA OpenBao replicas, backup/restore)
