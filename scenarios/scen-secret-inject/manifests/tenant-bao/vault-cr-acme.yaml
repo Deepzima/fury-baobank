@@ -1,0 +1,139 @@
+# Vault CR template for per-tenant OpenBao instances.
+#
+# To instantiate for a new tenant, replace acme and scen-acme:
+#   sed 's/acme/acme-corp/g; s/scen-acme/acme-corp/g' vault-cr-template.yaml
+#
+# The Bank-Vaults operator watches for this CR and:
+#   1. Creates an OpenBao StatefulSet in the tenant namespace
+#   2. Initializes + auto-unseals the instance
+#   3. Applies the externalConfig (policies, auth, secret engines)
+#
+# Naming convention: reevo-ob-id-<identifier>
+# See: FD-003, threat model FD-003
+
+apiVersion: "vault.banzaicloud.com/v1alpha1"
+kind: "Vault"
+metadata:
+  name: reevo-ob-id-acme
+  namespace: scen-acme
+spec:
+  size: 1
+
+  # OpenBao image — pinned < 2.2.0 to avoid service registration label break
+  # (bank-vaults/vault-operator#746). NOT HashiCorp Vault (BSL constraint).
+  image: ghcr.io/openbao/openbao:2.1.0
+
+  # Bank-Vaults sidecar for init/unseal/config reconciliation.
+  bankVaultsImage: ghcr.io/bank-vaults/bank-vaults:v1.32.1
+
+  # Unseal config: store encrypted keys in a K8s Secret in the tenant namespace.
+  # Lab-only — production should use cloud KMS (AWS/GCP/Azure).
+  unsealConfig:
+    options:
+      preFlightChecks: true
+    kubernetes:
+      secretNamespace: scen-acme
+      secretName: reevo-ob-id-acme-unseal-keys
+
+  # OpenBao server configuration.
+  config:
+    storage:
+      raft:
+        path: "/openbao/data"
+    listener:
+      tcp:
+        address: "0.0.0.0:8200"
+        # TLS disabled for lab simplicity — the operator manages TLS via
+        # the caNamespaces mechanism. For production, enable TLS with
+        # cert-manager issued certs.
+        tls_disable: true
+    api_addr: "http://reevo-ob-id-acme.scen-acme:8200"
+    cluster_addr: "https://${.Env.POD_NAME}:8201"
+    ui: false
+
+  # Service account for the OpenBao pod.
+  # The operator does NOT create the SA — set to "default" which always exists.
+  serviceAccount: default
+
+  # Persistent storage for Raft.
+  volumeClaimTemplates:
+    - metadata:
+        name: vault-raft
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+
+  # Override vault container mounts: OpenBao expects config at /openbao/config
+  # (not /vault/config which is the HashiCorp Vault path). The operator renders
+  # config into the vault-config emptyDir — we mount it at the OpenBao path.
+  # Also mount Raft storage at /openbao/data (not /vault/data).
+  vaultContainerSpec:
+    name: vault
+    volumeMounts:
+      - mountPath: /openbao/config
+        name: vault-config
+      - mountPath: /openbao/data
+        name: vault-raft
+
+  # Resource limits per OpenBao pod (lab sizing).
+  resources:
+    vault:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Config-as-code: the operator reconciles this into the running instance.
+  # Policies, auth methods, and secret engines — all declarative.
+  externalConfig:
+    # Enable audit logging — every secret read/write is logged (threat model rec).
+    # Path: /tmp/ is writable by the non-root OpenBao process.
+    # /vault/logs/ does NOT exist in the OpenBao image (it uses /openbao/).
+    audit:
+      - type: file
+        path: file
+        options:
+          file_path: /tmp/audit.log
+
+    # KV-v2 secret engine at secret/.
+    # The tenant has full CRUD — it's their Vault.
+    secrets:
+      - path: secret
+        type: kv
+        options:
+          version: "2"
+
+    # Kubernetes auth method: pods in the tenant namespace authenticate
+    # using their ServiceAccount JWT. The K8s API validates the token.
+    auth:
+      - type: kubernetes
+        roles:
+          - name: acme-app
+            bound_service_account_names:
+              - default
+            bound_service_account_namespaces:
+              - scen-acme
+            policies:
+              - acme-admin
+            ttl: 1h
+
+    # Tenant admin policy: full access to secret/* in their own instance.
+    # Since each tenant has a DEDICATED Vault, a broad policy is safe —
+    # there are no other tenants' secrets in this instance.
+    policies:
+      - name: acme-admin
+        rules: |
+          path "secret/*" {
+            capabilities = ["create", "read", "update", "delete", "list"]
+          }
+          path "sys/mounts" {
+            capabilities = ["read", "list"]
+          }
+          path "sys/audit" {
+            capabilities = ["read", "list"]
+          }

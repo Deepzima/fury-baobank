@@ -1,0 +1,16 @@
+# Scenario: cross-cluster secret injection (FD-004)
+#
+# Two sub-kustomizations targeting different clusters:
+#
+#   tenant-bao/    → applied to fury-baobank (Capsule tenant + OpenBao + NodePort)
+#   tenant-env/    → applied to fury-baobank-consumer (app + vault-env init container)
+#
+# Note: scripts apply each sub-folder to the correct cluster context.
+# This root kustomization is for review/documentation only.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - tenant-bao
+  # tenant-env is NOT included — it needs envsubst for ${VAULT_ADDR}
+  # and targets a different cluster context.

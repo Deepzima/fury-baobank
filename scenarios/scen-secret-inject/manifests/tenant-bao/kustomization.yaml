@@ -1,0 +1,10 @@
+# Baobank-side resources: tenant + OpenBao + NodePort exposure.
+# Applied to: kind-fury-baobank context
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - tenant-acme.yaml
+  - vault-rbac-acme.yaml
+  - vault-cr-acme.yaml
+  - nodeport-acme.yaml

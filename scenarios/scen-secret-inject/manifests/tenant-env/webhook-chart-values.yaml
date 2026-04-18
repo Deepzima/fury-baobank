@@ -1,0 +1,37 @@
+# Bank-Vaults webhook values for the consumer cluster.
+# Only the webhook — no operator, no Vault instance.
+# The webhook points at the remote OpenBao on baobank.
+
+replicaCount: 1
+
+debug: false
+
+# Self-signed cert (no cert-manager on consumer — keep it minimal)
+certificate:
+  useCertManager: false
+  generate: true
+
+# Webhook config
+podsFailurePolicy: Fail
+secretsFailurePolicy: Ignore
+configMapFailurePolicy: Ignore
+customResourcesFailurePolicy: Ignore
+timeoutSeconds: 5
+
+namespaceSelector:
+  matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values:
+        - kube-system
+        - kube-public
+        - kube-node-lease
+        - local-path-storage
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi

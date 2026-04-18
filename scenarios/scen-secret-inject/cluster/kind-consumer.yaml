@@ -1,0 +1,13 @@
+# Consumer Kind cluster for cross-cluster secret injection scenario (FD-004).
+# Minimal: 1 node, default CNI, no Vault infrastructure.
+# This cluster consumes secrets from baobank's OpenBao — it has no Vault of its own.
+#
+# WARNING: this cluster shares the Docker bridge with fury-baobank.
+# OpenBao is exposed via NodePort on the baobank node Docker IP.
+# In production, use Ingress + TLS + IP allowlist instead of NodePort.
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: fury-baobank-consumer
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.31.14@sha256:6f86cf509dbb42767b6e79debc3f2c32e4ee01386f0489b3b2be24b0a55aac2b

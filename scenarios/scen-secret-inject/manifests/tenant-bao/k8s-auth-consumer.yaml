@@ -1,0 +1,30 @@
+# Kubernetes auth mount for the consumer cluster on the tenant's OpenBao.
+#
+# This tells OpenBao: "trust JWTs signed by the consumer cluster's API server."
+# The consumer cluster's webhook sends pod SA tokens here for validation.
+# OpenBao calls TokenReview on the consumer API server to verify.
+#
+# ${CONSUMER_API_URL} and ${CONSUMER_CA_CERT} are substituted at setup time
+# by the provision script after discovering the consumer cluster's details.
+#
+# Security notes:
+# - Only the platform operator can create this auth mount (root token required)
+# - Policy is scoped to secret/data/acme/* (tenant isolation)
+# - SA binding: any SA in consumer-app namespace can auth (customer controls their SAs)
+# - If consumer API server is compromised, attacker can only access THIS tenant's secrets
+---
+# This file is documentation/reference — the actual config is applied
+# via vault CLI in the provision script because it requires dynamic values
+# (consumer API URL + CA cert discovered at runtime).
+#
+# vault auth enable -path=kubernetes-consumer kubernetes
+#
+# vault write auth/kubernetes-consumer/config \
+#   kubernetes_host="${CONSUMER_API_URL}" \
+#   kubernetes_ca_cert=@/tmp/consumer-ca.pem
+#
+# vault write auth/kubernetes-consumer/role/consumer-app \
+#   bound_service_account_names="*" \
+#   bound_service_account_namespaces="consumer-app" \
+#   policies="consumer-app" \
+#   ttl=1h

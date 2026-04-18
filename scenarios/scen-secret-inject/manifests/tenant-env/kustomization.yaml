@@ -1,0 +1,9 @@
+# Consumer-side resources: app with vault-env init container.
+# Applied to: kind-fury-baobank-consumer context
+# Note: consumer-app.yaml contains ${VAULT_ADDR} placeholder —
+#       apply via envsubst, not kustomize build directly.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - consumer-app.yaml

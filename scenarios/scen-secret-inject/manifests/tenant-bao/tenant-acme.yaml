@@ -1,0 +1,17 @@
+apiVersion: capsule.clastix.io/v1beta2
+kind: Tenant
+metadata:
+  name: scen-acme
+spec:
+  owners:
+    - name: acme-admin@example.com
+      kind: User
+  namespaceOptions:
+    quota: 3
+  resourceQuotas:
+    scope: Tenant
+    items:
+      - hard:
+          limits.cpu: "4"
+          limits.memory: "4Gi"
+          requests.storage: "2Gi"

@@ -1,0 +1,22 @@
+# NodePort Service to expose tenant's OpenBao to the Docker bridge network.
+# WARNING: this exposes OpenBao to ALL containers on the Docker bridge — not
+# just the consumer cluster. Production: use Ingress + TLS + IP allowlist.
+apiVersion: v1
+kind: Service
+metadata:
+  name: reevo-ob-id-acme-nodeport
+  namespace: scen-acme
+  labels:
+    app.kubernetes.io/name: vault
+    scenario: scen-secret-inject
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: vault
+    vault_cr: reevo-ob-id-acme
+  ports:
+    - port: 8200
+      targetPort: 8200
+      nodePort: 30820
+      protocol: TCP
+      name: api

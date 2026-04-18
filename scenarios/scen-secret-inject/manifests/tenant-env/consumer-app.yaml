@@ -1,0 +1,55 @@
+# Consumer app with Bank-Vaults webhook annotations for cross-cluster injection.
+#
+# The webhook on the consumer cluster intercepts this pod, reads the annotations,
+# authenticates to the remote OpenBao via Kubernetes auth (cross-cluster),
+# and injects secrets as env vars. The app code is 100% Vault-unaware.
+#
+# ${VAULT_ADDR} is substituted at deploy time via envsubst.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: consumer-app
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: consumer-sa
+  namespace: consumer-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer-app
+  namespace: consumer-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consumer-app
+  template:
+    metadata:
+      labels:
+        app: consumer-app
+      annotations:
+        # Bank-Vaults webhook annotations — the webhook resolves these
+        vault.security.banzaicloud.io/vault-addr: "${VAULT_ADDR}"
+        vault.security.banzaicloud.io/vault-auth-method: "kubernetes"
+        vault.security.banzaicloud.io/vault-path: "kubernetes-consumer"
+        vault.security.banzaicloud.io/vault-role: "consumer-app"
+    spec:
+      serviceAccountName: consumer-sa
+      containers:
+        - name: app
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "DB_PASSWORD=${DB_PASSWORD}"
+              echo "DB_USERNAME=${DB_USERNAME}"
+              sleep 3600
+          env:
+            - name: DB_PASSWORD
+              value: "vault:secret/data/acme/db#password"
+            - name: DB_USERNAME
+              value: "vault:secret/data/acme/db#username"
